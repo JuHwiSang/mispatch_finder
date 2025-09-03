@@ -52,8 +52,8 @@ def test_run_analysis_end_to_end_local_repo(tmp_path, monkeypatch):
         def stop_tunnel(self):
             return None
 
-    def fake_start_tunnel(local_url):
-        print(f"fake_start_tunnel: {local_url}")
+    def fake_start_tunnel(host, port):
+        local_url = f"http://{host}:{port}"
         return local_url, DummyTunnel()
 
     monkeypatch.setattr(tun_mod.Tunnel, "start_tunnel", fake_start_tunnel)
