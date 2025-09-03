@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-import asyncio
+import subprocess
+import threading
+import time
 import re
-from typing import Optional, Tuple
-
-import asyncssh
+from typing import Optional, Tuple, List
 
 class Tunnel:
-    """Encapsulates a localhost.run reverse SSH tunnel lifecycle.
+    """Subprocess-backed tunnel using `ssh` to localhost.run.
 
-    Usage:
-        tunnel = Tunnel()
-        public_url = tunnel.start("http://127.0.0.1:18080")
-        ...
-        tunnel.stop()
-
-    Backward-compatible module-level helpers `start_tunnel` / `stop_tunnel` are retained.
+    Opens a reverse tunnel via: ssh -R REMOTE:host:port nokey@localhost.run
+    Parses the public URL from ssh stdout.
     """
 
     def __init__(
@@ -34,90 +29,97 @@ class Tunnel:
         self.known_hosts = known_hosts
 
         self.public_url: Optional[str] = None
-        self.conn: Optional[asyncssh.SSHClientConnection] = None
-        self.listener: Optional[asyncssh.SSHListener] = None
-        self.proc: Optional[asyncssh.SSHClientProcess] = None
+        self._proc: Optional[subprocess.Popen] = None
+        self._reader: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
 
-    async def _start_async(self, host: str, port: int) -> str:
-        
-        class BannerClient(asyncssh.SSHClient):
-            def auth_banner_received(self, msg, lang):
-                print(f"msg: {msg}")
-                buf.put_nowait((msg, lang))
-        
-        buf = asyncio.Queue()
-        self.conn = await asyncssh.connect(
-            self.remote_host,
-            username=self.username,
-            known_hosts=self.known_hosts,
-            keepalive_interval=self.keepalive_interval,
-            client_factory=BannerClient,
+    @staticmethod
+    def _ensure_ssh_available() -> None:
+        try:
+            subprocess.run(["ssh", "-V"], capture_output=True, check=False)
+        except FileNotFoundError:
+            raise RuntimeError(
+                "`ssh` not found. Please install OpenSSH client and ensure `ssh` is in PATH."
+            )
+
+    def _build_cmd(self, host: str, port: int) -> List[str]:
+        base = [
+            "ssh",
+            "-R",
+            f"{self.remote_port}:{host}:{port}",
+            f"{self.username}@{self.remote_host}",
+        ]
+        return base
+
+    def _launch(self, host: str, port: int, timeout_sec: float = 30.0) -> str:
+        self._ensure_ssh_available()
+        cmd = self._build_cmd(host, port)
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
         )
-        
-        self.listener = await self.conn.forward_local_port("", 80, host, port)
-        
-        public_url = None
-        async with asyncio.timeout(20):
-            while 1:
-                msg, lang = await buf.get()
-                m = re.search(r"https://[0-9a-f]+\.lhr\.life", msg)
-                if m:
-                    public_url = m.group(0)
+        self._proc = proc
+
+        def _reader() -> None:
+            assert proc.stdout is not None
+            for raw in proc.stdout:
+                if self._stop_event.is_set():
+                    break
+                line = raw.strip()
+                m = re.search(r"https://[0-9a-f]+\.lhr\.life", line)
+                if m and not self.public_url:
+                    self.public_url = m.group(0)
                     break
 
-        assert public_url is not None
+        self._reader = threading.Thread(target=_reader, daemon=True)
+        self._reader.start()
 
-        self.public_url = public_url
-        print('\npublic url obtained:', public_url)
-        return public_url
+        start = time.time()
+        while self.public_url is None and proc.poll() is None:
+            if time.time() - start > timeout_sec:
+                break
+            time.sleep(0.05)
+
+        if self.public_url:
+            print("\npublic url obtained:", self.public_url)
+            return self.public_url
+
+        # Failed to obtain URL; clean up and error
+        self.stop()
+        raise RuntimeError("Failed to obtain public URL from ssh output. Is localhost.run reachable?")
 
     def start(self, host: str, port: int) -> str:
-        """Start the tunnel based on a local URL like http://HOST:PORT.
-
-        Returns the public URL.
-        """
-        return asyncio.run(self._start_async(host, port))
+        return self._launch(host, port)
 
     def stop(self) -> None:
-        """Stop the tunnel if it is running."""
-        if not (self.conn or self.listener or self.proc):
+        self._stop_event.set()
+        if self._proc is None:
             return
         try:
-            if self.proc:
-                try:
-                    self.proc.terminate()
-                except Exception:
-                    pass
-            if self.listener:
-                try:
-                    async def _close() -> None:
-                        if self.listener:
-                            self.listener.close()
-                    asyncio.run(_close())
-                except Exception:
-                    pass
-            if self.conn:
-                try:
-                    self.conn.close()
-                except Exception:
-                    pass
+            self._proc.terminate()
+            try:
+                self._proc.wait(timeout=5)
+            except Exception:
+                self._proc.kill()
         finally:
-            self.proc = None
-            self.listener = None
-            self.conn = None
+            self._proc = None
+            if self._reader is not None:
+                self._reader.join(timeout=2)
+                self._reader = None
             self.public_url = None
 
     # Context manager support
     def __enter__(self) -> "Tunnel":
-        """Enter context and return self. Call `start()` inside the block if needed."""
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
-        """Ensure tunnel is stopped on context exit. Exceptions are propagated."""
         try:
             self.stop()
         finally:
-            # Returning False to propagate any exception
             return False
 
     # Convenience APIs mirroring previous module-level helpers
