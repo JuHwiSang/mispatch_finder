@@ -1,0 +1,78 @@
+import types
+
+import pytest
+
+from itdev_llm_adapter import Toolset
+from itdev_llm_adapter.adapters.openai_adapter import OpenAIHostedMCPAdapter
+
+
+class DummyResponse:
+    def __init__(self, text: str) -> None:
+        self.output_text = text
+
+
+class DummyResponsesClient:
+    def __init__(self, expected_tools):
+        self._expected_tools = expected_tools
+
+    def create(self, *, model, input, tools, extra_headers=None):  # noqa: A002 (input)
+        # Validate tools shape roughly
+        assert tools == self._expected_tools
+        assert isinstance(model, str)
+        assert isinstance(input, str)
+        return DummyResponse("ok-openai")
+
+
+class DummyOpenAI:
+    def __init__(self, *, api_key: str):
+        assert api_key == "sk-openai-test"
+        self.responses = DummyResponsesClient(expected_tools=None)
+
+
+@pytest.fixture(autouse=True)
+def mock_openai(monkeypatch):
+    # Replace OpenAI class used in adapter with dummy
+    import itdev_llm_adapter.adapters.openai_adapter as mod
+
+    def _factory(*, api_key: str):
+        return DummyOpenAI(api_key=api_key)
+
+    monkeypatch.setattr(mod, "OpenAI", lambda api_key: _factory(api_key=api_key))
+    yield
+
+
+def test_openai_adapter_builds_tools_and_calls_create(monkeypatch):
+    # Arrange expected tool payload
+    expected_tools = [
+        {
+            "type": "mcp",
+            "server_label": "my-mcp",
+            "server_url": "https://example.com/sse",
+            "headers": {"Authorization": "Bearer mcp"},
+            "allowed_tools": ["echo"],
+            "require_approval": "never",
+        }
+    ]
+
+    dummy_client = DummyOpenAI(api_key="sk-openai-test")
+    dummy_client.responses = DummyResponsesClient(expected_tools=expected_tools)
+
+    import itdev_llm_adapter.adapters.openai_adapter as mod
+    monkeypatch.setattr(mod, "OpenAI", lambda api_key: dummy_client)
+
+    adapter = OpenAIHostedMCPAdapter(model="o3", api_key="sk-openai-test")
+    text = adapter.run(
+        prompt="ping",
+        toolsets=[
+            Toolset(
+                label="my-mcp",
+                server_url="https://example.com/sse",
+                bearer_token="mcp",
+                allowed_tools=["echo"],
+                require_approval="never",
+            )
+        ],
+    )
+    assert text == "ok-openai"
+
+

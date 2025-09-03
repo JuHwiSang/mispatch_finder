@@ -1,0 +1,41 @@
+[project]
+name = "mispatch-finder"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=0.64.0",
+    "asyncssh>=2.21.0",
+    "cve-collector",
+    "gitpython>=3.1.45",
+    "jsts-debugger",
+    "openai>=1.102.0",
+    "paramiko>=4.0.0",
+    "platformdirs>=4.4.0",
+    "repo-read-mcp",
+    "typer>=0.16.1",
+]
+
+[project.optional-dependencies]
+tests = [
+    "fastapi>=0.116.1",
+    "pytest>=8.4.1",
+    "requests>=2.32.5",
+]
+
+[tool.uv.sources]
+cve-collector = { git = "https://github.com/JuHwiSang/cve_collector" }
+repo-read-mcp = { git = "https://github.com/JuHwiSang/repo_read_mcp" }
+jsts-debugger = { git = "https://github.com/JuHwiSang/jsts_debugger.git" }
+
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+mispatch_finder = "mispatch_finder.app.cli:app"
