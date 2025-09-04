@@ -11,6 +11,11 @@ from .main import run_analysis
 from .config import get_github_token, get_model_api_key, get_cache_dir
 from ..shared.rmtree_force import rmtree_force
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 

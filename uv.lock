@@ -575,8 +575,8 @@ wheels = [
 
 [[package]]
 name = "jsts-debugger"
-version = "0.1.3"
-source = { git = "https://github.com/JuHwiSang/jsts_debugger.git#08dd1af8a0756226fda05017dcdd40b0d9048e49" }
+version = "0.1.4"
+source = { git = "https://github.com/JuHwiSang/jsts_debugger.git#6c6081e3831836021fc977ea926e285bcbb5eb05" }
 dependencies = [
     { name = "docker" },
     { name = "fastmcp" },
@@ -702,6 +702,7 @@ dependencies = [
 tests = [
     { name = "fastapi" },
     { name = "pytest" },
+    { name = "python-dotenv" },
     { name = "requests" },
 ]
 
@@ -717,6 +718,7 @@ requires-dist = [
     { name = "paramiko", specifier = ">=4.0.0" },
     { name = "platformdirs", specifier = ">=4.4.0" },
     { name = "pytest", marker = "extra == 'tests'", specifier = ">=8.4.1" },
+    { name = "python-dotenv", marker = "extra == 'tests'", specifier = ">=1.1.1" },
     { name = "repo-read-mcp", git = "https://github.com/JuHwiSang/repo_read_mcp" },
     { name = "requests", marker = "extra == 'tests'", specifier = ">=2.32.5" },
     { name = "typer", specifier = ">=0.16.1" },
@@ -1057,8 +1059,8 @@ wheels = [
 
 [[package]]
 name = "repo-read-mcp"
-version = "0.2.3"
-source = { git = "https://github.com/JuHwiSang/repo_read_mcp#87254b67a7248b54afb12c2405332d8afe79842c" }
+version = "0.2.4"
+source = { git = "https://github.com/JuHwiSang/repo_read_mcp#1022bf8d8b7ac47f3aa62101c37015e527d33233" }
 dependencies = [
     { name = "docker" },
     { name = "fastmcp" },
