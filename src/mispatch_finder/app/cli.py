@@ -8,7 +8,7 @@ import typer
 from cve_collector import CVECollector
 
 from .main import run_analysis
-from .config import get_github_token, get_openai_key, get_anthropic_key, get_cache_dir
+from .config import get_github_token, get_model_api_key, get_cache_dir
 from ..shared.rmtree_force import rmtree_force
 
 
@@ -20,8 +20,6 @@ def run(
     ghsa: str = typer.Argument(..., help="GHSA identifier, e.g., GHSA-xxxx-xxxx-xxxx"),
     provider: str = typer.Option("openai", '--provider', case_sensitive=False, help="LLM provider"),
     model: str = typer.Option(..., '--model', help="Model name"),
-    api_key: str | None = typer.Option(None, '--api-key', help="Provider API key (fallback env)"),
-    github_token: str | None = typer.Option(None, '--github-token', help="GitHub token (fallback env)"),
     log_level: str = typer.Option("INFO", '--log-level', help="Log level", case_sensitive=False),
     force_reclone: bool = typer.Option(False, '--force-reclone', help="Force re-clone repo cache"),
 ):
@@ -32,14 +30,14 @@ def run(
         typer.echo("--model is required", err=True)
         raise typer.Exit(code=2)
 
-    resolved_api_key = api_key or (get_openai_key() if provider == "openai" else get_anthropic_key())
+    resolved_api_key = get_model_api_key()
     if not resolved_api_key:
-        typer.echo("API key is required (flag or environment variable)", err=True)
+        typer.echo("API key is required via environment variable", err=True)
         raise typer.Exit(code=2)
 
-    resolved_github = github_token or get_github_token()
+    resolved_github = get_github_token()
     if not resolved_github:
-        typer.echo("GitHub token is required (flag or environment variable)", err=True)
+        typer.echo("GitHub token is required via environment variable (GITHUB_TOKEN)", err=True)
         raise typer.Exit(code=2)
 
     result = run_analysis(

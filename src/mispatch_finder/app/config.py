@@ -30,12 +30,17 @@ def get_github_token(env_var: str = "GITHUB_TOKEN") -> Optional[str]:
     return os.environ.get(env_var)
 
 
-def get_openai_key(env_var: str = "OPENAI_API_KEY") -> Optional[str]:
-    return os.environ.get(env_var)
+def get_model_api_key(env_var: str = "MODEL_API_KEY") -> Optional[str]:
+    """Return the unified model API key from env.
 
-
-def get_anthropic_key(env_var: str = "ANTHROPIC_API_KEY") -> Optional[str]:
-    return os.environ.get(env_var)
+    Primary: MODEL_API_KEY
+    Fallbacks: OPENAI_API_KEY, ANTHROPIC_API_KEY
+    """
+    return (
+        os.environ.get(env_var)
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+    )
 
 
 def get_prompt_diff_max_chars(env_var: str = "MISPATCH_DIFF_MAX_CHARS") -> int:

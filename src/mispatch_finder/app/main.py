@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from .config import get_cache_dir, get_results_dir, get_github_token, get_openai_key, get_anthropic_key
+from .config import get_cache_dir, get_results_dir
 from .models import AnalysisRequest
 from ..core.analyze import Analyzer
 from ..infra.store import save_result, load_result
