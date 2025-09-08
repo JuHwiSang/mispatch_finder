@@ -575,12 +575,13 @@ wheels = [
 
 [[package]]
 name = "jsts-debugger"
-version = "0.1.4"
-source = { git = "https://github.com/JuHwiSang/jsts_debugger.git#6c6081e3831836021fc977ea926e285bcbb5eb05" }
+version = "0.1.6"
+source = { git = "https://github.com/JuHwiSang/jsts_debugger.git#0f50ca74c3225bc77b376afe3908177c4363e8a0" }
 dependencies = [
     { name = "docker" },
     { name = "fastmcp" },
     { name = "httpx" },
+    { name = "pydantic" },
     { name = "websockets" },
 ]
 
@@ -1059,8 +1060,8 @@ wheels = [
 
 [[package]]
 name = "repo-read-mcp"
-version = "0.2.4"
-source = { git = "https://github.com/JuHwiSang/repo_read_mcp#1022bf8d8b7ac47f3aa62101c37015e527d33233" }
+version = "0.2.5"
+source = { git = "https://github.com/JuHwiSang/repo_read_mcp#237e11893a011bade0fbefc602847eaf4a135388" }
 dependencies = [
     { name = "docker" },
     { name = "fastmcp" },

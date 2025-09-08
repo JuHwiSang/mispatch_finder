@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional
 
 from openai import OpenAI
 from openai.types.responses.tool_param import ToolParam
@@ -47,7 +47,7 @@ class OpenAIHostedMCPAdapter:
             if headers:
                 tool_obj["headers"] = headers
 
-            tools.append(cast(ToolParam, tool_obj))
+            tools.append(tool_obj)
 
         response = self._client.responses.create(
             model=self.model,

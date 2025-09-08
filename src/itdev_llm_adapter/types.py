@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Type-only import to align exactly with OpenAI SDK schema
+    from openai.types.responses.tool_param import McpRequireApproval
 
 
 # Public provider literal
@@ -21,6 +25,6 @@ class Toolset:
     bearer_token: Optional[str] = None
     headers: Dict[str, str] = field(default_factory=dict)
     allowed_tools: Optional[List[str]] = None
-    require_approval: Union[Literal["never"], Dict[str, bool], None] = "never"
+    require_approval: Optional["McpRequireApproval"] = "never"
 
 

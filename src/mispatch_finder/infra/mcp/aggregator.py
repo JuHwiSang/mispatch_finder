@@ -24,15 +24,14 @@ def start_main_server(servers: ServerMap, *, auth_token: str, port: int = 18080)
     auth = StaticTokenVerifier(tokens={auth_token: {"client_id": "mispatch-run"}})
     app = FastMCP(name="mispatch-finder", instructions="Mispatch Finder aggregator", auth=auth)
 
-    # Mount child apps under /{prefix}
     if servers.post_repo:
-        app.mount(prefix="/post_repo", server=servers.post_repo)
+        app.mount(prefix="post_repo", server=servers.post_repo)
     if servers.post_debug:
-        app.mount(prefix="/post_debug", server=servers.post_debug)
+        app.mount(prefix="post_debug", server=servers.post_debug)
     if servers.pre_repo:
-        app.mount(prefix="/pre_repo", server=servers.pre_repo)
+        app.mount(prefix="pre_repo", server=servers.pre_repo)
     if servers.pre_debug:
-        app.mount(prefix="/pre_debug", server=servers.pre_debug)
+        app.mount(prefix="pre_debug", server=servers.pre_debug)
 
     # TODO: add auth middleware when exposing via SSE HTTP server
 

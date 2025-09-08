@@ -18,7 +18,7 @@ def call_llm(
     adapter = get_adapter(provider, model, api_key)
     ts = [
         Toolset(
-            label="mispatch-tools",
+            label="mispatch_tools",
             server_url=mcp_url,
             bearer_token=mcp_token,
         )

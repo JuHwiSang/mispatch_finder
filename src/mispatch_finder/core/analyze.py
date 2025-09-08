@@ -89,7 +89,7 @@ class Analyzer:
             provider=req.provider,
             model=req.model,
             api_key=req.api_key,
-            mcp_url=public_url,
+            mcp_url=public_url + '/mcp',
             mcp_token=self._mcp_token,
             prompt=prompt,
         )
