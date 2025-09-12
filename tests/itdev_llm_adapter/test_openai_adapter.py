@@ -15,11 +15,12 @@ class DummyResponsesClient:
     def __init__(self, expected_tools):
         self._expected_tools = expected_tools
 
-    def create(self, *, model, input, tools, extra_headers=None):  # noqa: A002 (input)
+    def create(self, *, model, input, tools, tool_choice, extra_headers=None):  # noqa: A002 (input)
         # Validate tools shape roughly
         assert tools == self._expected_tools
         assert isinstance(model, str)
         assert isinstance(input, str)
+        assert tool_choice == "auto"
         return DummyResponse("ok-openai")
 
 

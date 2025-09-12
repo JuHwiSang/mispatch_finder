@@ -85,6 +85,9 @@ class Analyzer:
             diff_text=diff_text,
         )
         print('\nprompt built')
+        print('------------PROMPT START-----------')
+        print(prompt)
+        print('------------PROMPT END-----------')
         raw_text = call_llm(
             provider=req.provider,
             model=req.model,

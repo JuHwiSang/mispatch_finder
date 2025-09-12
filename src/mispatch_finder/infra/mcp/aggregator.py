@@ -5,8 +5,12 @@ from typing import Tuple
 
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+from fastmcp.server.middleware.middleware import Middleware
+from fastmcp.server.middleware.logging import LoggingMiddleware
 
 from mispatch_finder.infra.mcp.mounts import ServerMap
+from mispatch_finder.shared.list_tools import list_tools
+from mispatch_finder.shared.fastapi_raw_log import MCPWiretap
 
 
 class _ServerHandle:
@@ -22,7 +26,9 @@ def start_main_server(servers: ServerMap, *, auth_token: str, port: int = 18080)
     Returns (local_url, server_handle)
     """
     auth = StaticTokenVerifier(tokens={auth_token: {"client_id": "mispatch-run"}})
-    app = FastMCP(name="mispatch-finder", instructions="Mispatch Finder aggregator", auth=auth)
+    app = FastMCP(name="mispatch-finder", instructions="Mispatch Finder aggregator", auth=auth, stateless_http=True)
+    app.add_middleware(LoggingMiddleware(include_payloads=True))
+    app.add_middleware(MCPWiretap())
 
     if servers.post_repo:
         app.mount(prefix="post_repo", server=servers.post_repo)
@@ -34,6 +40,8 @@ def start_main_server(servers: ServerMap, *, auth_token: str, port: int = 18080)
         app.mount(prefix="pre_debug", server=servers.pre_debug)
 
     # TODO: add auth middleware when exposing via SSE HTTP server
+    
+    print("List tools: ", list_tools(app))
 
     def run_app() -> None:
         # Start blocking HTTP/SSE server

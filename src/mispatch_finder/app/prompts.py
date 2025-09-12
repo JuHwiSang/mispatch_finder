@@ -14,7 +14,6 @@ def build_prompt(ghsa: str, meta: Dict[str, str], has_pre: bool, has_post: bool,
         f"Repository: {repo_url}\n"
         f"Patched commit: {commit}\n"
         f"Pre-state tools: {pre_note}; Post-state tools: {post_note}.\n\n"
-        "Tools are exposed via MCP under prefixes: pre/repo, pre/debug, post/repo, post/debug.\n"
         "Use repo tools to read files/dirs and search; use debug tools only when Node project exists.\n\n"
         "Task:\n"
         "1) Decide if the patch is correct or leaves residual risk.\n"
@@ -24,7 +23,7 @@ def build_prompt(ghsa: str, meta: Dict[str, str], has_pre: bool, has_post: bool,
         "  \"verdict\": \"good\" | \"risky\",\n"
         "  \"severity\": \"low\" | \"medium\" | \"high\",\n"
         "  \"rationale\": string,\n"
-        "  \"evidence\": [{\"file\": string, \"line\"?: number, \"snippet\"?: string, \"tool\": string}],\n"
+        "  \"evidence\": [{\"file\": string, \"line\"?: number, \"snippet\"?: string}],\n"
         "  \"poc_idea\"?: string\n"
         "}\n"
     )
