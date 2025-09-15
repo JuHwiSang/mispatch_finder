@@ -1,10 +1,10 @@
-from typing import Any
+from typing import Callable
 import os
 import stat
 from pathlib import Path
 import shutil
 
-def _remove_readonly(func: Any, path: str, excinfo: Any) -> None:
+def _remove_readonly(func: Callable[[str], None], path: str, excinfo) -> None:
     """Helper for shutil.rmtree to clear read-only bits on Windows.
 
     Mirrors the logic previously duplicated across multiple test files.

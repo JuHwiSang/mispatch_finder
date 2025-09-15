@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Dict
 
 from .config import get_cache_dir, get_results_dir
 from .models import AnalysisRequest
@@ -17,7 +17,7 @@ def run_analysis(
     api_key: str,
     github_token: str,
     force_reclone: bool = False,
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     """High-level orchestration entrypoint (stub).
 
     This will:
@@ -43,7 +43,7 @@ def run_analysis(
     return payload
 
 
-def show_results(*, ghsa: str | None) -> Dict[str, Any]:
+def show_results(*, ghsa: str | None) -> Dict[str, object]:
     results_dir = get_results_dir()
     if ghsa:
         data = load_result(results_dir, ghsa)

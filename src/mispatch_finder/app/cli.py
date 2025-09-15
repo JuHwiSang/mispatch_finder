@@ -9,6 +9,7 @@ from cve_collector import CVECollector
 
 from .main import run_analysis
 from .config import get_github_token, get_model_api_key, get_cache_dir
+from ..shared.json_logging import build_json_console_handler, build_json_file_handler
 from ..shared.rmtree_force import rmtree_force
 
 try:
@@ -28,7 +29,18 @@ def run(
     log_level: str = typer.Option("INFO", '--log-level', help="Log level", case_sensitive=False),
     force_reclone: bool = typer.Option(False, '--force-reclone', help="Force re-clone repo cache"),
 ):
-    logging.basicConfig(level=getattr(logging, log_level.upper(), logging.INFO))
+    # structured logging: file + console
+    level = logging._nameToLevel.get(log_level.upper(), logging.INFO)
+    root = logging.getLogger()
+    root.setLevel(level)
+    # remove existing handlers to avoid duplication in reruns
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    logs_dir = get_cache_dir() / "logs"
+    file_handler = build_json_file_handler(logs_dir / f"{ghsa}.jsonl", level=level)
+    console_handler = build_json_console_handler(level=level)
+    root.addHandler(file_handler)
+    root.addHandler(console_handler)
 
     # Resolve required secrets
     if not model:
@@ -91,6 +103,22 @@ def clear():
         errors.append(f"cve_collector: {e}")
 
     typer.echo("Cleared local caches/results and CVE collector state.")
+
+
+@app.command()
+def log(ghsa: str = typer.Argument(..., help="GHSA identifier, e.g., GHSA-xxxx-xxxx-xxxx")):
+    """Print structured log lines for a GHSA run (from <cache>/logs/<GHSA>.jsonl)."""
+    logs_dir = get_cache_dir() / "logs"
+    log_fp = logs_dir / f"{ghsa}.jsonl"
+    if not log_fp.exists():
+        typer.echo(f"Log file not found: {log_fp}", err=True)
+        raise typer.Exit(code=2)
+    try:
+        for line in log_fp.read_text(encoding="utf-8").splitlines():
+            typer.echo(line)
+    except Exception as e:
+        typer.echo(f"Failed to read log file: {e}", err=True)
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

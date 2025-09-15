@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 import anthropic
 from anthropic.types.beta import BetaRequestMCPServerURLDefinitionParam
 
-from itdev_llm_adapter.types import Toolset
+from itdev_llm_adapter.types import Toolset, LLMResponse, TokenUsage
 
 
 class AnthropicHostedMCPAdapter:
@@ -19,6 +19,7 @@ class AnthropicHostedMCPAdapter:
     def __init__(self, model: str, api_key: str) -> None:
         self.model = model
         self._client = anthropic.Anthropic(api_key=api_key)
+        self.last_usage: Optional[Dict[str, int]] = None
 
     def run(
         self,
@@ -27,7 +28,7 @@ class AnthropicHostedMCPAdapter:
         *,
         max_output_tokens: int = 800,
         request_headers: Optional[Dict[str, str]] = None,
-    ) -> str:
+    ) -> LLMResponse:
         mcp_servers: List[BetaRequestMCPServerURLDefinitionParam] = []
         for toolset in toolsets:
             server: BetaRequestMCPServerURLDefinitionParam = {
@@ -48,12 +49,15 @@ class AnthropicHostedMCPAdapter:
             mcp_servers=mcp_servers,
             betas=["mcp-client-2025-04-04"],
         )
-
-        try:
-            return "".join(
-                block.text for block in getattr(message, "content", []) if getattr(block, "type", None) == "text"
-            )
-        except Exception:
-            return str(message)
+        # message.content is a list of content blocks; we only join text blocks
+        texts: List[str] = []
+        for block in message.content:
+            try:
+                if block.type == "text":
+                    texts.append(block.text)
+            except AttributeError:
+                continue
+        # Anthropic beta messages may not expose usage consistently; leave None
+        return LLMResponse(text="".join(texts) if texts else str(message), usage=None)
 
 

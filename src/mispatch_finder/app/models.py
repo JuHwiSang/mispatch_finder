@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -32,7 +32,7 @@ class AnalysisResult:
     verdict: Optional[str]
     severity: Optional[str]
     rationale: Optional[str]
-    evidence: Optional[List[Dict[str, Any]]]
+    evidence: Optional[List[Dict[str, object]]]
     poc_idea: Optional[str]
     raw_text: Optional[str]
 

@@ -5,12 +5,11 @@ from typing import Tuple
 
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
-from fastmcp.server.middleware.middleware import Middleware
 from fastmcp.server.middleware.logging import LoggingMiddleware
+from mispatch_finder.infra.mcp.wiretap_logging import WiretapLoggingMiddleware
 
 from mispatch_finder.infra.mcp.mounts import ServerMap
 from mispatch_finder.shared.list_tools import list_tools
-from mispatch_finder.shared.fastapi_raw_log import MCPWiretap
 
 
 class _ServerHandle:
@@ -28,7 +27,9 @@ def start_main_server(servers: ServerMap, *, auth_token: str, port: int = 18080)
     auth = StaticTokenVerifier(tokens={auth_token: {"client_id": "mispatch-run"}})
     app = FastMCP(name="mispatch-finder", instructions="Mispatch Finder aggregator", auth=auth, stateless_http=True)
     app.add_middleware(LoggingMiddleware(include_payloads=True))
-    app.add_middleware(MCPWiretap())
+    app.add_middleware(WiretapLoggingMiddleware(logger_name=__name__))
+
+    handle = _ServerHandle(app=app, thread=threading.current_thread(), port=port)
 
     if servers.post_repo:
         app.mount(prefix="post_repo", server=servers.post_repo)
@@ -50,11 +51,12 @@ def start_main_server(servers: ServerMap, *, auth_token: str, port: int = 18080)
     t = threading.Thread(target=run_app, daemon=True)
     t.start()
     local_url = f"http://127.0.0.1:{port}"
-    return local_url, _ServerHandle(app=app, thread=t, port=port)
+    handle.thread = t
+    return local_url, handle
 
 
 def stop_main_server(handle: _ServerHandle) -> None:
     # FastMCP currently lacks a public programmatic shutdown; rely on daemon thread exit on process end.
     _ = handle
 
-
+    return None

@@ -6,6 +6,7 @@ import pytest
 from helpers import mark_by_dir
 
 from mispatch_finder.infra import llm
+from itdev_llm_adapter.types import LLMResponse, TokenUsage
 
 class DummyAdapter:
     def __init__(self, provider: str, model: str, api_key: str):
@@ -13,7 +14,7 @@ class DummyAdapter:
         self.model = model
         self.api_key = api_key
 
-    def run(self, prompt: str, toolsets):
+    def run(self, prompt: str, toolsets, *, max_output_tokens: int = 800, request_headers=None) -> LLMResponse:  # noqa: ANN001
         # Return deterministic fake JSON-like text to simulate model output
         payload = {
             "verdict": "good",
@@ -21,7 +22,7 @@ class DummyAdapter:
             "rationale": "stubbed",
             "evidence": [],
         }
-        return json.dumps(payload)
+        return LLMResponse(text=json.dumps(payload), usage=TokenUsage(input_tokens=1, output_tokens=2, total_tokens=3))
 
 
 @pytest.fixture(autouse=True)

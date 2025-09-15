@@ -26,6 +26,12 @@ def get_results_dir() -> Path:
     return path
 
 
+def get_logs_dir() -> Path:
+    path = Path(_dirs().user_log_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def get_github_token(env_var: str = "GITHUB_TOKEN") -> Optional[str]:
     return os.environ.get(env_var)
 

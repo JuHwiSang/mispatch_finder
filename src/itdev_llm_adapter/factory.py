@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from .types import Toolset
+from .types import Toolset, LLMResponse
 from .interface import LLMHostedMCPAdapter
 from .adapters.openai_adapter import OpenAIHostedMCPAdapter
 from .adapters.anthropic_adapter import AnthropicHostedMCPAdapter
@@ -24,7 +24,7 @@ def run_with_openai(
     prompt: str,
     toolsets: List[Toolset],
     request_headers: Optional[Dict[str, str]] = None,
-) -> str:
+) -> LLMResponse:
     """One-shot helper to run with OpenAI using the MCP tools block."""
     return OpenAIHostedMCPAdapter(model, api_key).run(prompt, toolsets, request_headers=request_headers)
 
@@ -36,7 +36,7 @@ def run_with_anthropic(
     prompt: str,
     toolsets: List[Toolset],
     max_output_tokens: int = 800,
-) -> str:
+) -> LLMResponse:
     """One-shot helper to run with Anthropic using the MCP connector beta."""
     return AnthropicHostedMCPAdapter(model, api_key).run(prompt, toolsets, max_output_tokens=max_output_tokens)
 

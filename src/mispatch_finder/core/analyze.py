@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 from dataclasses import asdict
 import re
-from typing import Any, Dict
+import logging
 
 from ..app.models import AnalysisRequest, AnalysisResult
 from ..app.config import get_cache_dir
@@ -31,9 +31,22 @@ class Analyzer:
     def mcp_token(self) -> str:
         return self._mcp_token
 
-    def analyze(self, req: AnalysisRequest) -> Dict[str, Any]:
+    def analyze(self, req: AnalysisRequest) -> dict:
+        logger = logging.getLogger(__name__)
+
         # 1) GHSA metadata
         meta = fetch_ghsa_metadata(req.ghsa, github_token=req.github_token)
+        logger.info("ghsa_meta", extra={
+            "payload": {
+                "type": "ghsa_meta",
+                "ghsa": req.ghsa,
+                "meta": {
+                    "repo_url": meta.repo_url,
+                    "commit": meta.commit,
+                    "parent_commit": meta.parent_commit,
+                },
+            }
+        })
 
         # 2) repos
         cache_dir = get_cache_dir()
@@ -44,10 +57,14 @@ class Analyzer:
             parent_commit=meta.parent_commit,
             force_reclone=req.force_reclone,
         )
-        print('\nrepo prepared')
+        logger.info("repos_prepared", extra={
+            "payload": {
+                "type": "repos_prepared",
+                "workdirs": {"post": str(post) if post else None, "pre": str(pre) if pre else None},
+            }
+        })
 
         # 3) Build diff (may be large) and prepare MCP
-        # Use the actual worktree as the repo dir; GitPython can open a worktree path.
         base_worktree = post or pre
         diff_full = ""
         if base_worktree is not None:
@@ -55,28 +72,47 @@ class Analyzer:
         max_chars = get_prompt_diff_max_chars()
         diff_text = diff_full
         if len(diff_full) > max_chars:
-            # Middle truncate to keep head and tail
             head = diff_full[: max_chars // 2]
             tail = diff_full[-(max_chars - len(head)) :]
             diff_text = head + "\n...\n" + tail
-        print('\ndiff prepared')
+        logger.info("diff_built", extra={
+            "payload": {
+                "type": "diff_built",
+                "full_len": len(diff_full),
+                "included_len": len(diff_text),
+                "truncated": len(diff_full) > max_chars,
+            }
+        })
 
         # MCP mount & server
         servers = create_child_servers(workdir_post=post, workdir_pre=pre)
-        print('\nservers created')
         local_url, main_handle = start_main_server(servers, auth_token=self._mcp_token)
-        print('\nmain server started')
+        logger.info("aggregator_started", extra={
+            "payload": {
+                "type": "aggregator_started",
+                "local_url": local_url,
+                "mounted": {
+                    "post_repo": bool(servers.post_repo),
+                    "post_debug": bool(servers.post_debug),
+                    "pre_repo": bool(servers.pre_repo),
+                    "pre_debug": bool(servers.pre_debug),
+                },
+            }
+        })
 
         # 4) tunnel
         m = re.match(r"^https?://([^/:]+):(\d+)$", local_url)
         if not m:
             raise ValueError(f"Invalid local URL: {local_url}")
-        else:
-            host, port = m.group(1), int(m.group(2))
+        host, port = m.group(1), int(m.group(2))
         public_url, tunnel_handle = Tunnel.start_tunnel(host, port)
-        print('\ntunnel started')
-        # 5) LLM call (prompt TBD)
-        # meta is GHSAInfo; build_prompt expects Dict[str, str]. Create a narrow view.
+        logger.info("tunnel_started", extra={
+            "payload": {
+                "type": "tunnel_started",
+                "public_url": public_url,
+            }
+        })
+        # 5) LLM call
         prompt = build_prompt(
             req.ghsa,
             {"repo_url": meta.repo_url, "commit": meta.commit},
@@ -84,10 +120,15 @@ class Analyzer:
             has_post=post is not None,
             diff_text=diff_text,
         )
-        print('\nprompt built')
-        print('------------PROMPT START-----------')
-        print(prompt)
-        print('------------PROMPT END-----------')
+        logger.info("llm_input", extra={
+            "payload": {
+                "type": "llm_input",
+                "provider": req.provider,
+                "model": req.model,
+                "prompt_len": len(prompt),
+                "prompt": prompt,
+            }
+        })
         raw_text = call_llm(
             provider=req.provider,
             model=req.model,
@@ -95,8 +136,15 @@ class Analyzer:
             mcp_url=public_url + '/mcp',
             mcp_token=self._mcp_token,
             prompt=prompt,
+            usage_sink=None,
         )
-        print('\nllm called')
+        logger.info("llm_output", extra={
+            "payload": {
+                "type": "llm_output",
+                "raw_text_len": len(raw_text) if raw_text is not None else 0,
+                "raw_text": raw_text,
+            }
+        })
         # Teardown
         try:
             tunnel_handle.stop_tunnel()
@@ -114,6 +162,10 @@ class Analyzer:
             poc_idea=None,
             raw_text=raw_text,
         )
-        return asdict(result)
+        payload = asdict(result)
+
+        logger.info("final_result", extra={"payload": {"type": "final_result", "result": payload}})
+
+        return payload
 
 

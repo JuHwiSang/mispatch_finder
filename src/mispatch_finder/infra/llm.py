@@ -4,6 +4,7 @@ import json
 
 from itdev_llm_adapter import Toolset
 from itdev_llm_adapter.factory import get_adapter
+from typing import Optional
 
 
 def call_llm(
@@ -14,6 +15,7 @@ def call_llm(
     mcp_url: str,
     mcp_token: str,
     prompt: str,
+    usage_sink: Optional[object] = None,
 ) -> str:
     adapter = get_adapter(provider, model, api_key)
     ts = [
@@ -23,7 +25,8 @@ def call_llm(
             bearer_token=mcp_token,
         )
     ]
-    text = adapter.run(prompt, ts)
+    resp = adapter.run(prompt, ts)
+    text = resp.text
     # Best-effort: if the model returned markup or extra text, try to extract JSON block
     try:
         start = text.find('{')

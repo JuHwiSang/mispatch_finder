@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Protocol, runtime_checkable
 
-from .types import Toolset
+from .types import Toolset, LLMResponse
 
 
 @runtime_checkable
@@ -16,8 +16,8 @@ class LLMHostedMCPAdapter(Protocol):
         *,
         max_output_tokens: int = 800,
         request_headers: Optional[Dict[str, str]] = None,
-    ) -> str:
-        """Run a request with MCP access and return concatenated text output."""
+    ) -> LLMResponse:
+        """Run a request with MCP access and return normalized text + token usage."""
         raise NotImplementedError
 
 

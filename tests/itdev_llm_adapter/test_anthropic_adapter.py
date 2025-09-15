@@ -48,7 +48,7 @@ def mock_anthropic(monkeypatch):
 
 def test_anthropic_adapter_builds_mcp_servers_and_calls_create(monkeypatch):
     adapter = AnthropicHostedMCPAdapter(model="claude-sonnet", api_key="sk-anthropic-test")
-    text = adapter.run(
+    response = adapter.run(
         prompt="ping",
         toolsets=[
             Toolset(
@@ -60,6 +60,6 @@ def test_anthropic_adapter_builds_mcp_servers_and_calls_create(monkeypatch):
         ],
         max_output_tokens=256,
     )
-    assert text == "ok-anthropic"
+    assert response.text == "ok-anthropic"
 
 

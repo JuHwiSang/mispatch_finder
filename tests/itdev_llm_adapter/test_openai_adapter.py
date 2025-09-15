@@ -15,12 +15,13 @@ class DummyResponsesClient:
     def __init__(self, expected_tools):
         self._expected_tools = expected_tools
 
-    def create(self, *, model, input, tools, tool_choice, extra_headers=None):  # noqa: A002 (input)
+    def create(self, *, model, input, tools, tool_choice, extra_headers=None, store=True):  # noqa: A002 (input)
         # Validate tools shape roughly
         assert tools == self._expected_tools
         assert isinstance(model, str)
         assert isinstance(input, str)
         assert tool_choice == "auto"
+        assert store == True
         return DummyResponse("ok-openai")
 
 
@@ -62,7 +63,7 @@ def test_openai_adapter_builds_tools_and_calls_create(monkeypatch):
     monkeypatch.setattr(mod, "OpenAI", lambda api_key: dummy_client)
 
     adapter = OpenAIHostedMCPAdapter(model="o3", api_key="sk-openai-test")
-    text = adapter.run(
+    response = adapter.run(
         prompt="ping",
         toolsets=[
             Toolset(
@@ -74,6 +75,6 @@ def test_openai_adapter_builds_tools_and_calls_create(monkeypatch):
             )
         ],
     )
-    assert text == "ok-openai"
+    assert response.text == "ok-openai"
 
 
