@@ -4,11 +4,13 @@ import pytest
 
 from itdev_llm_adapter import Toolset
 from itdev_llm_adapter.adapters.openai_adapter import OpenAIHostedMCPAdapter
+from itdev_llm_adapter.types import TokenUsage
 
 
 class DummyResponse:
     def __init__(self, text: str) -> None:
         self.output_text = text
+        self.usage = TokenUsage(input_tokens=1, output_tokens=2, total_tokens=3)
 
 
 class DummyResponsesClient:

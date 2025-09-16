@@ -3,11 +3,13 @@ import types
 
 from itdev_llm_adapter import Toolset
 from itdev_llm_adapter.adapters.anthropic_adapter import AnthropicHostedMCPAdapter
+from itdev_llm_adapter.types import TokenUsage
 
 
 class DummyMessage:
     def __init__(self, content):
         self.content = content
+        self.usage = TokenUsage(input_tokens=1, output_tokens=2, total_tokens=3)
 
 
 class DummyContentBlock:

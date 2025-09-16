@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import List, Optional, Dict
 
 import anthropic
 from anthropic.types.beta import BetaRequestMCPServerURLDefinitionParam
@@ -19,7 +19,6 @@ class AnthropicHostedMCPAdapter:
     def __init__(self, model: str, api_key: str) -> None:
         self.model = model
         self._client = anthropic.Anthropic(api_key=api_key)
-        self.last_usage: Optional[Dict[str, int]] = None
 
     def run(
         self,
@@ -57,7 +56,12 @@ class AnthropicHostedMCPAdapter:
                     texts.append(block.text)
             except AttributeError:
                 continue
-        # Anthropic beta messages may not expose usage consistently; leave None
-        return LLMResponse(text="".join(texts) if texts else str(message), usage=None)
+        # usage tokens
+        u = message.usage
+        iu = u.input_tokens if u is not None else None
+        ou = u.output_tokens if u is not None else None
+        tt = (iu or 0) + (ou or 0) if (iu is not None or ou is not None) else None
+        usage = TokenUsage(input_tokens=iu, output_tokens=ou, total_tokens=tt)
+        return LLMResponse(text="".join(texts) if texts else str(message), usage=usage)
 
 

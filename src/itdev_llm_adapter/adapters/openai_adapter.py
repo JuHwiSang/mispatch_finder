@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import List, Optional, Dict
 
 from openai import OpenAI
 from openai.types.responses.tool_param import ToolParam
@@ -18,7 +18,6 @@ class OpenAIHostedMCPAdapter:
     def __init__(self, model: str, api_key: str) -> None:
         self.model = model
         self._client = OpenAI(api_key=api_key)
-        self.last_usage: Optional[Dict[str, int]] = None
 
     def run(
         self,
@@ -61,13 +60,12 @@ class OpenAIHostedMCPAdapter:
             store=True,
         )
         usage = None
-        if hasattr(response, "usage") and response.usage is not None:
-            u = response.usage
-            usage = TokenUsage(
-                input_tokens=getattr(u, "input_tokens", None) if isinstance(getattr(u, "input_tokens", None), int) else None,
-                output_tokens=getattr(u, "output_tokens", None) if isinstance(getattr(u, "output_tokens", None), int) else None,
-                total_tokens=getattr(u, "total_tokens", None) if isinstance(getattr(u, "total_tokens", None), int) else None,
-            )
+        u = response.usage
+        if u is not None:
+            iu = u.input_tokens
+            ou = u.output_tokens
+            tt = u.total_tokens if u.total_tokens is not None else (iu or 0) + (ou or 0)
+            usage = TokenUsage(input_tokens=iu, output_tokens=ou, total_tokens=tt)
         return LLMResponse(text=response.output_text or str(response), usage=usage)
 
 

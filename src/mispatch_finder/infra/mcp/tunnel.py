@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import os
+import logging
+import shutil
 import subprocess
 import threading
 import time
 import re
 from typing import Optional, Tuple, List
+
+logger = logging.getLogger(__name__)
 
 class Tunnel:
     """Subprocess-backed tunnel using `ssh` to localhost.run.
@@ -35,16 +40,31 @@ class Tunnel:
 
     @staticmethod
     def _ensure_ssh_available() -> None:
-        try:
-            subprocess.run(["ssh", "-V"], capture_output=True, check=False)
-        except FileNotFoundError:
+        if shutil.which("ssh") is None:
             raise RuntimeError(
                 "`ssh` not found. Please install OpenSSH client and ensure `ssh` is in PATH."
             )
 
     def _build_cmd(self, host: str, port: int) -> List[str]:
+        # Force non-interactive, robust behavior across environments
+        #  - BatchMode=yes: never prompt for passwords/confirmation
+        #  - StrictHostKeyChecking=no: accept host key without prompt
+        #  - UserKnownHostsFile: avoid writing to user's known_hosts (use provided path or OS devnull)
+        #  - ServerAliveInterval: keep tunnel alive with periodic keepalives
+        #  - ExitOnForwardFailure=yes: fail fast if remote forward cannot be established
+        known_hosts_file = self.known_hosts if self.known_hosts else os.devnull
         base = [
             "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            f"UserKnownHostsFile={known_hosts_file}",
+            "-o",
+            f"ServerAliveInterval={self.keepalive_interval}",
+            "-o",
+            "ExitOnForwardFailure=yes",
             "-R",
             f"{self.remote_port}:{host}:{port}",
             f"{self.username}@{self.remote_host}",
@@ -54,6 +74,12 @@ class Tunnel:
     def _launch(self, host: str, port: int, timeout_sec: float = 30.0) -> str:
         self._ensure_ssh_available()
         cmd = self._build_cmd(host, port)
+        logger.info("tunnel_exec", extra={
+            "payload": {
+                "type": "tunnel_exec",
+                "cmd": " ".join(cmd),
+            }
+        })
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.DEVNULL,
@@ -70,6 +96,12 @@ class Tunnel:
                 if self._stop_event.is_set():
                     break
                 line = raw.strip()
+                try:
+                    logger.debug("tunnel_ssh_line", extra={
+                        "payload": {"type": "ssh_line", "line": line}
+                    })
+                except Exception:
+                    pass
                 m = re.search(r"https://[0-9a-f]+\.lhr\.life", line)
                 if m and not self.public_url:
                     self.public_url = m.group(0)
@@ -85,11 +117,29 @@ class Tunnel:
             time.sleep(0.05)
 
         if self.public_url:
+            try:
+                logger.info("tunnel_ready", extra={
+                    "payload": {
+                        "type": "tunnel_ready",
+                        "public_url": self.public_url,
+                    }
+                })
+            except Exception:
+                pass
             print("\npublic url obtained:", self.public_url)
             return self.public_url
 
         # Failed to obtain URL; clean up and error
         self.stop()
+        try:
+            logger.error("tunnel_failed_to_obtain_url", extra={
+                "payload": {
+                    "type": "tunnel_error",
+                    "reason": "no_public_url",
+                }
+            })
+        except Exception:
+            pass
         raise RuntimeError("Failed to obtain public URL from ssh output. Is localhost.run reachable?")
 
     def start(self, host: str, port: int) -> str:

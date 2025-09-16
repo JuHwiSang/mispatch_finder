@@ -24,7 +24,7 @@ class JSONFormatter(logging.Formatter):
 
 def build_json_file_handler(path: Path, level: int = logging.INFO) -> Handler:
     path.parent.mkdir(parents=True, exist_ok=True)
-    h = logging.FileHandler(path, encoding="utf-8", mode="w")
+    h = logging.FileHandler(path, encoding="utf-8", mode="a")
     h.setLevel(level)
     h.setFormatter(JSONFormatter())
     return h

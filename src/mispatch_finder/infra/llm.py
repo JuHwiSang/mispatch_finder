@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from itdev_llm_adapter import Toolset
 from itdev_llm_adapter.factory import get_adapter
@@ -27,6 +28,19 @@ def call_llm(
     ]
     resp = adapter.run(prompt, ts)
     text = resp.text
+    # Log token usage if available
+    u = resp.usage
+    if u is not None:
+        logging.getLogger(__name__).info("llm_usage", extra={
+            "payload": {
+                "type": "llm_usage",
+                "provider": provider,
+                "model": model,
+                "input_tokens": u.input_tokens,
+                "output_tokens": u.output_tokens,
+                "total_tokens": u.total_tokens,
+            }
+        })
     # Best-effort: if the model returned markup or extra text, try to extract JSON block
     try:
         start = text.find('{')

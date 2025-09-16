@@ -2,6 +2,7 @@ import threading
 import time
 import queue
 import secrets
+import logging
 
 import pytest
 import requests
@@ -65,3 +66,50 @@ def test_tunnel_forwards_body_and_header() -> None:
         server.should_exit = True
         server_thread.join(timeout=5)
 
+
+def test_tunnel_does_not_break_logging(tmp_path, monkeypatch) -> None:
+    # Configure root logger to write to a temp file
+    log_fp = tmp_path / "tunnel_logging.jsonl"
+    root = logging.getLogger()
+    prev_handlers = list(root.handlers)
+    prev_level = root.level
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    from mispatch_finder.shared.json_logging import build_json_file_handler
+    fh = build_json_file_handler(log_fp, level=logging.INFO)
+    root.setLevel(logging.INFO)
+    root.addHandler(fh)
+
+    try:
+        logger = logging.getLogger(__name__)
+        logger.info("before_marker", extra={"payload": {"type": "marker", "stage": "before"}})
+
+        # Patch _launch to avoid real SSH/network while still exercising availability check
+        def fake_launch(self, host: str, port: int, timeout_sec: float = 30.0) -> str:  # type: ignore[no-redef]
+            self._ensure_ssh_available()
+            return f"http://{host}:{port}"
+
+        monkeypatch.setattr(Tunnel, "_launch", fake_launch, raising=True)
+
+        public_url, handle = Tunnel.start_tunnel("127.0.0.1", 0)
+        assert public_url.startswith("http://127.0.0.1:"), public_url
+        logger.info("after_marker", extra={"payload": {"type": "marker", "stage": "after"}})
+
+        # Cleanup
+        handle.stop_tunnel()
+
+        # Ensure logs were written both before and after start_tunnel
+        for h in root.handlers:
+            try:
+                h.flush()
+            except Exception:
+                pass
+        content = log_fp.read_text(encoding="utf-8")
+        assert "before_marker" in content, "Log before start_tunnel not written"
+        assert "after_marker" in content, "Log after start_tunnel not written"
+    finally:
+        # Restore previous logging config
+        root.removeHandler(fh)
+        root.setLevel(prev_level)
+        for h in prev_handlers:
+            root.addHandler(h)

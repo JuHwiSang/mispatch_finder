@@ -58,6 +58,7 @@ src/mispatch_finder/
     list_tools.py          # Utility to list mounted tools
     rmtree_force.py        # Robust directory removal
     to_jsonable.py         # Safe converter for logging payloads
+    log_summary.py         # Dataclass-based log summarizer and table formatter
 ```
 
 Rationale:
@@ -118,8 +119,29 @@ Credentials are read from environment variables:
 ### `mispatch_finder clear`
 - Clear local caches/results and CVE collector local state.
 
-### `mispatch_finder log GHSA-xxxx-xxxx-xxxx`
-- Print structured JSON log lines from `<cache>/logs/<GHSA>.jsonl`. Exits with error if missing.
+### `mispatch_finder log [GHSA-xxxx-xxxx-xxxx]`
+Options:
+- `--verbose`/`-v`
+
+Behavior:
+- When GHSA is provided: prints structured JSON lines from `<cache>/logs/<GHSA>.jsonl` (errors if missing).
+- When GHSA is omitted: prints a right-aligned summary table for all `logs/*.jsonl` with columns:
+  - GHSA, Verdict, Model, MCP Calls, Tokens, RunDate
+  - MCP Calls: counts `mcp_request` events but excludes entries where `payload.method == "tools/list"`.
+  - Tokens: sums `llm_usage.payload.total_tokens` across the run.
+  - RunDate: approximated from the log file's modified time.
+- With `--verbose`: appends MCP tool call details as `(NAME: NUM, NAME: NUM, ...)`.
+
+### `mispatch_finder all`
+Options:
+- `--provider [openai|anthropic]` (default: openai)
+- `--model TEXT` (required)
+- `--limit`/`-n` INTEGER (optional)
+
+Behavior:
+- Uses the same source as `show` to obtain GHSA identifiers.
+- Summarizes existing logs and skips IDs whose verdict is already `good` or `risky`.
+- Runs analysis (`run`) for remaining IDs, respecting `--limit`.
 
 ---
 
@@ -240,8 +262,9 @@ Output JSON fields:
 - Standardized return type for hosted MCP adapters:
   - `LLMResponse { text: str, usage?: TokenUsage }`
   - `TokenUsage { input_tokens?: int, output_tokens?: int, total_tokens?: int }`
-- OpenAI adapter fills `usage` when provided by the SDK; Anthropic currently leaves it `None`.
-- Internal wrapper `infra/llm.call_llm` returns plain text for the app layer; token usage can be surfaced later if required.
+- OpenAI adapter fills `usage` from SDK `response.usage`.
+- Anthropic adapter fills `usage` from `message.usage` and computes `total_tokens` when missing.
+- Internal wrapper `infra/llm.call_llm` returns plain text for the app layer and logs token usage payload when present.
 
 ### Logging policy
 - Standard library `logging` only. Library attaches a `NullHandler` by default to avoid unsolicited output.
@@ -254,6 +277,7 @@ Output JSON fields:
     - Request: `payload={"type":"request", "method": ctx.method, "message": to_jsonable(ctx.message)}`
     - Response: `payload={"type":"response", "method": ctx.method, "result": to_jsonable(result)}`
   - Combine with FastMCP `LoggingMiddleware(include_payloads=True)` if you need extra low-level traces.
+  - CLI also emits: `payload={"type":"log_file", "path": "<cache>/logs/<GHSA>.jsonl"}` at startup.
 
 ### Run-time logging payloads (Analyzer)
 - All app logs put their data under `payload` for consistency:
@@ -264,6 +288,7 @@ Output JSON fields:
   - `{"type":"tunnel_started", public_url}`
   - `{"type":"llm_input", provider, model, prompt_len, prompt}`
   - `{"type":"llm_output", raw_text_len, raw_text}`
+  - `{"type":"llm_usage", provider, model, input_tokens, output_tokens, total_tokens}`
   - `{"type":"final_result", result}`
 
 ### File/Folder conventions
