@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import subprocess
+from pathlib import Path
 
 import typer
 from cve_collector import CVECollector
@@ -188,16 +190,36 @@ def all(
         typer.echo("No pending GHSA IDs to run.")
         return
 
-    # Run sequentially using the existing run() to configure per-run logging
+    # Run each analysis in a fresh subprocess to ensure clean state per run
+    # (Original in-process call retained for reference)
+    # for idx, ghsa in enumerate(to_run, start=1):
+    #     typer.echo(f"[{idx}/{len(to_run)}] Running {ghsa} (provider={provider}, model={model})...")
+    #     run(
+    #         ghsa=ghsa,
+    #         provider=provider,
+    #         model=model,
+    #         log_level="INFO",
+    #         force_reclone=False,
+    #     )
+
+    src_dir = Path(__file__).resolve().parents[2]
     for idx, ghsa in enumerate(to_run, start=1):
-        typer.echo(f"[{idx}/{len(to_run)}] Running {ghsa} (provider={provider}, model={model})...")
-        run(
-            ghsa=ghsa,
-            provider=provider,
-            model=model,
-            log_level="INFO",
-            force_reclone=False,
-        )
+        typer.echo(f"[{idx}/{len(to_run)}] Running {ghsa} (provider={provider}, model={model}) via subprocess...")
+        cmd = [
+            sys.executable,
+            "-m",
+            "mispatch_finder.app.cli",
+            "run",
+            ghsa,
+            "--provider",
+            provider,
+            "--model",
+            model,
+        ]
+        result = subprocess.run(cmd, cwd=str(src_dir))
+        if result.returncode != 0:
+            typer.echo(f"Subprocess failed for {ghsa} with exit code {result.returncode}", err=True)
+            raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
