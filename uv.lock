@@ -844,8 +844,8 @@ wheels = [
 
 [[package]]
 name = "jsts-debugger"
-version = "0.1.6"
-source = { git = "https://github.com/JuHwiSang/jsts_debugger.git#0f50ca74c3225bc77b376afe3908177c4363e8a0" }
+version = "0.1.7"
+source = { git = "https://github.com/JuHwiSang/jsts_debugger.git#64691efb4ea7c7f0a0ec734e260742dae6a0b73b" }
 dependencies = [
     { name = "docker" },
     { name = "fastmcp" },
