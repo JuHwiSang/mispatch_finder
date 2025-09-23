@@ -109,9 +109,16 @@ def summarize_logs(logs_dir: Path, verbose: bool = False) -> Dict[str, RunSummar
     except FileNotFoundError:
         files = []
 
-    summaries: Dict[str, RunSummary] = {}
+    # Parse, then sort by run_date descending (empty dates last)
+    items: List[RunSummary] = []
     for fp in files:
-        summaries[fp.stem] = parse_log_file(fp, verbose=verbose)
+        items.append(parse_log_file(fp, verbose=verbose))
+
+    items.sort(key=lambda s: s.run_date or "", reverse=True)
+
+    summaries: Dict[str, RunSummary] = {}
+    for s in items:
+        summaries[s.ghsa_id] = s
     return summaries
 
 
