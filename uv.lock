@@ -843,18 +843,6 @@ wheels = [
 ]
 
 [[package]]
-name = "jsts-debugger"
-version = "0.1.7"
-source = { git = "https://github.com/JuHwiSang/jsts_debugger.git#64691efb4ea7c7f0a0ec734e260742dae6a0b73b" }
-dependencies = [
-    { name = "docker" },
-    { name = "fastmcp" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "websockets" },
-]
-
-[[package]]
 name = "kubernetes"
 version = "33.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -995,7 +983,6 @@ dependencies = [
     { name = "asyncssh" },
     { name = "cve-collector" },
     { name = "gitpython" },
-    { name = "jsts-debugger" },
     { name = "openai" },
     { name = "paramiko" },
     { name = "platformdirs" },
@@ -1018,7 +1005,6 @@ requires-dist = [
     { name = "cve-collector", git = "https://github.com/JuHwiSang/cve_collector" },
     { name = "fastapi", marker = "extra == 'tests'", specifier = ">=0.116.1" },
     { name = "gitpython", specifier = ">=3.1.45" },
-    { name = "jsts-debugger", git = "https://github.com/JuHwiSang/jsts_debugger.git" },
     { name = "openai", specifier = ">=1.102.0" },
     { name = "paramiko", specifier = ">=4.0.0" },
     { name = "platformdirs", specifier = ">=4.4.0" },

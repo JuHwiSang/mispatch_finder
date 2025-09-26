@@ -70,9 +70,12 @@ def test_run_analysis_end_to_end_local_repo(tmp_path, monkeypatch):
 
     # Should contain our dummy adapter's JSON
     assert out["raw_text"]
-    data = (
-        json.loads(out["raw_text"])
-        if isinstance(out["raw_text"], str)
-        else out["raw_text"]
-    )
-    assert data.get("verdict") == "good"
+    if isinstance(out["raw_text"], str):
+        data = json.loads(out["raw_text"])
+    else:
+        data = out["raw_text"]
+    assert isinstance(data, dict)
+    assert data.get("patch_risk") in {"good", "low", "medium", "high"}
+    assert data.get("current_risk") in {"good", "low", "medium", "high"}
+    assert isinstance(data.get("reason"), str)
+    assert isinstance(data.get("poc"), str)

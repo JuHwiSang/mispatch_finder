@@ -22,7 +22,7 @@ def run_analysis(
 
     This will:
       - fetch GHSA meta
-      - prepare repos (pre/post)
+      - prepare repos (previous/current)
       - start MCP + tunnel
       - call LLM via itdev_llm_adapter
       - persist and return a result dict

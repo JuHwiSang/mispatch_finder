@@ -9,7 +9,6 @@ dependencies = [
     "asyncssh>=2.21.0",
     "cve-collector",
     "gitpython>=3.1.45",
-    "jsts-debugger",
     "openai>=1.102.0",
     "paramiko>=4.0.0",
     "platformdirs>=4.4.0",
@@ -28,7 +27,6 @@ tests = [
 [tool.uv.sources]
 cve-collector = { git = "https://github.com/JuHwiSang/cve_collector" }
 repo-read-mcp = { git = "https://github.com/JuHwiSang/repo_read_mcp" }
-jsts-debugger = { git = "https://github.com/JuHwiSang/jsts_debugger.git" }
 
 
 [build-system]

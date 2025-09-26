@@ -10,10 +10,10 @@ import typer
 from cve_collector import CVECollector
 
 from .main import run_analysis
-from .config import get_github_token, get_model_api_key, get_cache_dir
+from .config import get_github_token, get_model_api_key, get_cache_dir, get_logs_dir
 from ..shared.json_logging import build_json_console_handler, build_json_file_handler
 from ..shared.rmtree_force import rmtree_force
-from ..shared.log_summary import summarize_logs, format_summary_table
+from ..shared.log_summary import summarize_logs, format_summary_table, parse_log_details, format_single_summary
 
 try:
     from dotenv import load_dotenv
@@ -28,7 +28,7 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 def run(
     ghsa: str = typer.Argument(..., help="GHSA identifier, e.g., GHSA-xxxx-xxxx-xxxx"),
     provider: str = typer.Option("openai", '--provider', case_sensitive=False, help="LLM provider"),
-    model: str = typer.Option(..., '--model', help="Model name"),
+    model: str = typer.Option("gpt-5", '--model', help="Model name"),
     log_level: str = typer.Option("INFO", '--log-level', help="Log level", case_sensitive=False),
     force_reclone: bool = typer.Option(False, '--force-reclone', help="Force re-clone repo cache"),
 ):
@@ -39,7 +39,7 @@ def run(
     # remove existing handlers to avoid duplication in reruns
     for h in list(root.handlers):
         root.removeHandler(h)
-    logs_dir = get_cache_dir() / "logs"
+    logs_dir = get_logs_dir()
     log_file = logs_dir / f"{ghsa}.jsonl"
     if log_file.exists():
         log_file.unlink()
@@ -125,22 +125,33 @@ def log(
 ):
     """Print logs for a GHSA, or list summaries of all runs when GHSA omitted.
 
-    Summary columns: GHSA, Verdict, Model, RunDate, MCP Calls
+    Summary columns: GHSA, Current, Patch, Model, MCP Calls, Tokens, RunDate
     With --verbose, also includes MCP tool call details.
     """
-    logs_dir = get_cache_dir() / "logs"
+    logs_dir = get_logs_dir()
 
-    # If GHSA provided, dump file content
+    # If GHSA provided
     if ghsa:
         log_fp = logs_dir / f"{ghsa}.jsonl"
         if not log_fp.exists():
             typer.echo(f"Log file not found: {log_fp}", err=True)
             raise typer.Exit(code=2)
+        # With --verbose, dump full JSONL
+        if verbose:
+            try:
+                for line in log_fp.read_text(encoding="utf-8").splitlines():
+                    typer.echo(line)
+            except Exception as e:
+                typer.echo(f"Failed to read log file: {e}", err=True)
+                raise typer.Exit(code=1)
+            return
+        # Otherwise, print concise summary with fallbacks
         try:
-            for line in log_fp.read_text(encoding="utf-8").splitlines():
+            details = parse_log_details(log_fp)
+            for line in format_single_summary(details):
                 typer.echo(line)
         except Exception as e:
-            typer.echo(f"Failed to read log file: {e}", err=True)
+            typer.echo(f"Failed to summarize log file: {e}", err=True)
             raise typer.Exit(code=1)
         return
 
@@ -151,15 +162,15 @@ def log(
 
 @app.command()
 def all(
-    provider: str = typer.Option("openai", "--provider", case_sensitive=False, help="LLM provider"),
-    model: str = typer.Option(..., "--model", help="Model name"),
+    provider: str | None = typer.Option(None, "--provider", case_sensitive=False, help="LLM provider (optional)"),
+    model: str | None = typer.Option(None, "--model", help="Model name (optional)"),
     limit: int | None = typer.Option(None, "--limit", "-n", help="Max number of IDs to run"),
 ):
-    """Run analysis for GHSA IDs lacking decisive verdicts.
+    """Run analysis for GHSA IDs lacking a completed run.
 
     - Gets GHSA IDs via CVECollector (same source as `show`).
-    - Summarizes existing logs to check verdicts.
-    - Runs analysis for IDs where verdict is not 'good' or 'risky'.
+    - Summarizes existing logs to check completion.
+    - Skips IDs that already have a completed run (`final_result` seen).
     - Respects --limit to cap the number of runs.
     """
     # Fetch GHSA identifiers
@@ -171,16 +182,14 @@ def all(
     items = collector.collect_identifiers()
 
     # Summarize existing logs
-    logs_dir = get_cache_dir() / "logs"
+    logs_dir = get_logs_dir()
     summaries = summarize_logs(logs_dir, verbose=False)
 
     # Choose IDs to run
     to_run: list[str] = []
     for ghsa in items:
         s = summaries.get(ghsa)
-        verdict = (s.verdict if s is not None else "") or ""
-        v = str(verdict).strip().lower()
-        if v in ("good", "risky"):
+        if s is not None and s.done:
             continue
         to_run.append(ghsa)
         if limit is not None and len(to_run) >= limit:
@@ -204,18 +213,26 @@ def all(
 
     src_dir = Path(__file__).resolve().parents[2]
     for idx, ghsa in enumerate(to_run, start=1):
-        typer.echo(f"[{idx}/{len(to_run)}] Running {ghsa} (provider={provider}, model={model}) via subprocess...")
+        # Status line with optional provider/model context
+        parts = [f"[{idx}/{len(to_run)}] Running {ghsa}"]
+        if provider:
+            parts.append(f"provider={provider}")
+        if model:
+            parts.append(f"model={model}")
+        typer.echo(" " .join(parts) + " via subprocess...")
+
+        # Build subprocess command; only pass flags that were provided
         cmd = [
             sys.executable,
             "-m",
             "mispatch_finder.app.cli",
             "run",
             ghsa,
-            "--provider",
-            provider,
-            "--model",
-            model,
         ]
+        if provider:
+            cmd.extend(["--provider", provider])
+        if model:
+            cmd.extend(["--model", model])
         result = subprocess.run(cmd, cwd=str(src_dir))
         if result.returncode != 0:
             typer.echo(f"Subprocess failed for {ghsa} with exit code {result.returncode}", err=True)

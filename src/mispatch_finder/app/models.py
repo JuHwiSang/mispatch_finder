@@ -8,8 +8,8 @@ from typing import Dict, List, Optional
 @dataclass
 class RepoContext:
     repo_url: str
-    workdir_post: Optional[Path]
-    workdir_pre: Optional[Path]
+    workdir_current: Optional[Path]
+    workdir_previous: Optional[Path]
     commit: str
     parent_commit: Optional[str]
 

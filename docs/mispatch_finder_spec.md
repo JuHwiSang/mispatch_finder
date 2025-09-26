@@ -5,7 +5,7 @@ Detect whether historical GHSA patches were correct or potentially left residual
 
 ### Goals
 - CLI and Python API to analyze a given GHSA ID
-- Reproducible, cacheable repo preparation (pre/post commit workdirs)
+- Reproducible, cacheable repo preparation (previous/current workdirs)
 - Secure, ephemeral MCP exposure via localhost.run with one-shot Authorization (FastMCP + StaticTokenVerifier)
 - Provider-agnostic LLM invocation (OpenAI/Anthropic) via `itdev_llm_adapter`
 
@@ -18,11 +18,11 @@ Detect whether historical GHSA patches were correct or potentially left residual
 ## High-Level Flow
 1) Fetch GHSA metadata using `cve_collector` (repo URL, patch commit).
 2) Prepare two cached working directories (copy-based):
-   - post: checkout target patch commit
-   - pre: checkout parent of patch commit (if none, mark pre as unavailable)
+   - current: repository's present state (current HEAD)
+   - previous: checkout parent of the patched commit (if none, mark previous as unavailable)
 3) Start child MCP servers conditionally and mount under prefixes:
-   - post_repo: repo_read_mcp; post_debug: jsts_debugger (if Node project)
-   - pre_repo: repo_read_mcp (if parent exists); pre_debug: jsts_debugger (if Node project)
+   - current_repo: repo_read_mcp
+   - previous_repo: repo_read_mcp (if parent exists)
 4) Aggregate under a main FastMCP with Authorization (StaticTokenVerifier) and wiretap logging.
 5) Expose main server via localhost.run (SSH reverse tunnel) and capture public URL.
 6) Build a single `Toolset` to the aggregator `/mcp` with bearer token and call the LLM with prompt+metadata.
@@ -46,7 +46,7 @@ src/mispatch_finder/
     cve.py                 # cve_collector wrapper
     git_repo.py            # git clone/fetch/checkout, caching
     mcp/
-      mounts.py            # create repo_read_mcp / jsts_debugger servers
+      mounts.py            # create repo_read_mcp servers
       aggregator.py        # compose main FastMCP + security middleware + wiretap
       wiretap_logging.py   # logging middleware for MCP request/response events
       security.py          # Lightweight auth middleware helper (legacy/minimal)
@@ -94,6 +94,8 @@ Rationale:
 - Diff size cap for prompts: `MISPATCH_DIFF_MAX_CHARS` (default: 200_000)
   - If the unified diff exceeds the cap, it is middle-truncated (head + tail joined with `...`).
  - Cache base: user cache directory via `platformdirs`. Results saved under `<cache>/results/`.
+ - Directory configuration (dotenv loaded only by CLI):
+   - `MISPATCH_HOME` (base dir). The app creates subfolders `cache/`, `results/`, `logs/` automatically.
 
 ---
 
@@ -124,12 +126,15 @@ Options:
 - `--verbose`/`-v`
 
 Behavior:
-- When GHSA is provided: prints structured JSON lines from `<cache>/logs/<GHSA>.jsonl` (errors if missing).
+- When GHSA is provided:
+  - With `--verbose`: prints raw JSONL lines from `<cache>/logs/<GHSA>.jsonl`.
+  - Without `--verbose`: prints a concise summary block with fallbacks (GHSA, Repo URL, Commit, Model, Patch Risk, Current Risk, Reason, PoC if any).
 - When GHSA is omitted: prints a right-aligned summary table for all `logs/*.jsonl` with columns:
-  - GHSA, Verdict, Model, MCP Calls, Tokens, RunDate
+  - GHSA, Current, Patch, Model, MCP Calls, Tokens, RunDate
   - MCP Calls: counts `mcp_request` events but excludes entries where `payload.method == "tools/list"`.
   - Tokens: sums `llm_usage.payload.total_tokens` across the run.
   - RunDate: approximated from the log file's modified time.
+  - Verdict derivation: prefer `current_risk`, then `patch_risk`. Legacy `severity` may populate `patch_risk` when present.
 - With `--verbose`: appends MCP tool call details as `(NAME: NUM, NAME: NUM, ...)`.
 
 ### `mispatch_finder all`
@@ -139,30 +144,28 @@ Options:
 - `--limit`/`-n` INTEGER (optional)
 
 Behavior:
-- Uses the same source as `show` to obtain GHSA identifiers.
-- Summarizes existing logs and skips IDs whose verdict is already `good` or `risky`.
-- Runs analysis (`run`) for remaining IDs, respecting `--limit`.
+ - Uses the same source as `show` to obtain GHSA identifiers.
+ - Summarizes existing logs and skips IDs that already have a completed run (presence of `final_result`).
+ - Runs analysis (`run`) for remaining IDs, respecting `--limit`.
 
 ---
 
 ## Prompt Contract (current)
 Model input includes:
 - GHSA metadata summary
-- Availability note of MCP tools (pre/post), using a simple map:
-  - core/toolset: `{"pre/repo": bool, "pre/debug": bool, "post/repo": bool, "post/debug": bool}`
-  - aggregator mounts actually use underscore prefixes: `/pre_repo`, `/pre_debug`, `/post_repo`, `/post_debug`
+- Availability note of MCP tools (previous/current), using a simple map:
+  - core/toolset: `{"previous/repo": bool, "current/repo": bool}`
+  - aggregator mounts actually use underscore prefixes: `/previous_repo`, `/current_repo`
 - Unified diff of the patched commit (may be truncated by size cap)
 - Tasks:
-  - Assess patch correctness
-  - Identify residual risks and impacted surfaces
-  - Provide reasoning and references (files/lines via tools)
-  - Suggest simple PoC ideas if risk detected
+  - Rate patch adequacy from the previous state
+  - Rate whether the current repository still has a risk
+  - Provide a succinct reason and optional PoC (prefer code)
 Output JSON fields:
-- `verdict`: "good" | "risky"
-- `severity`: "low" | "medium" | "high"
-- `rationale`: str
-- `evidence`: list[{ file, line?, snippet? }]
-- `poc_idea?`: str
+- `patch_risk`: "good" | "low" | "medium" | "high"
+- `current_risk`: "good" | "low" | "medium" | "high"
+- `reason`: str
+- `poc?`: str
 
 ---
 
@@ -179,15 +182,14 @@ Output JSON fields:
 - Internal API updated: `AnalysisRequest.api_key` and `.github_token` are required (non-Optional); `run_analysis` requires them explicitly.
 - CLI `main()` wrapper removed; Typer app is invoked directly.
 - MCP security: main FastMCP uses `StaticTokenVerifier`, requiring `Authorization: Bearer <token>`.
-- MCP mounts: use dataclass `ServerMap` with optional `pre_repo`/`pre_debug`; prefixes use underscores (e.g., `/post_repo`).
+- MCP mounts: use dataclass `ServerMap` with optional `previous_repo`; prefixes use underscores (e.g., `/current_repo`).
 - Prompt: include unified diff of the patched commit; respects `MISPATCH_DIFF_MAX_CHARS` with middle truncation.
-- Repo prep: worktrees for pre/post; parent commit auto-derived when missing.
+- Repo prep: worktrees for previous/current; parent commit auto-derived when missing.
 - `show` command: when no GHSA provided, lists cached result summaries.
 - OpenAI adapter: Responses API tools use dict-based `ToolParam` with `{"type":"mcp", ...}` and `tool_choice="auto"`.
 - Test suite implemented: pytest with unit/integration markers; only `itdev_llm_adapter` is mocked; tunnel is stubbed in integration; CLI tests use `CliRunner`.
 
 ## Open Questions / Iteration Items
-- jsts_debugger enablement gate (detect JS/TS project reliably?)
 - Fallback when localhost.run is unavailable
 - Results schema versioning
 

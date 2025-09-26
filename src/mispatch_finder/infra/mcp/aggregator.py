@@ -31,14 +31,10 @@ def start_main_server(servers: ServerMap, *, auth_token: str, port: int = 18080)
 
     handle = _ServerHandle(app=app, thread=threading.current_thread(), port=port)
 
-    if servers.post_repo:
-        app.mount(prefix="post_repo", server=servers.post_repo)
-    if servers.post_debug:
-        app.mount(prefix="post_debug", server=servers.post_debug)
-    if servers.pre_repo:
-        app.mount(prefix="pre_repo", server=servers.pre_repo)
-    if servers.pre_debug:
-        app.mount(prefix="pre_debug", server=servers.pre_debug)
+    if servers.current_repo:
+        app.mount(prefix="current_repo", server=servers.current_repo)
+    if servers.previous_repo:
+        app.mount(prefix="previous_repo", server=servers.previous_repo)
 
     # TODO: add auth middleware when exposing via SSE HTTP server
     

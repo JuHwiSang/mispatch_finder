@@ -17,10 +17,10 @@ class DummyAdapter:
     def run(self, prompt: str, toolsets, *, max_output_tokens: int = 800, request_headers=None) -> LLMResponse:  # noqa: ANN001
         # Return deterministic fake JSON-like text to simulate model output
         payload = {
-            "verdict": "good",
-            "severity": "low",
-            "rationale": "stubbed",
-            "evidence": [],
+            "patch_risk": "good",
+            "current_risk": "good",
+            "reason": "stubbed",
+            "poc": "echo stub"
         }
         return LLMResponse(text=json.dumps(payload), usage=TokenUsage(input_tokens=1, output_tokens=2, total_tokens=3))
 

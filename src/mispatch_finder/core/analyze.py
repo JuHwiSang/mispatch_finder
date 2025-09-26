@@ -55,22 +55,21 @@ class Analyzer:
 
             # 2) repos
             cache_dir = get_cache_dir()
-            post, pre = prepare_repos(
+            current, previous = prepare_repos(
                 cache_dir=cache_dir,
                 repo_url=meta.repo_url,
                 commit=meta.commit,
-                parent_commit=meta.parent_commit,
                 force_reclone=req.force_reclone,
             )
             logger.info("repos_prepared", extra={
                 "payload": {
                     "type": "repos_prepared",
-                    "workdirs": {"post": str(post) if post else None, "pre": str(pre) if pre else None},
+                    "workdirs": {"current": str(current) if current else None, "previous": str(previous) if previous else None},
                 }
             })
 
             # 3) Build diff (may be large) and prepare MCP
-            base_worktree = post or pre
+            base_worktree = current or previous
             diff_full = ""
             if base_worktree is not None:
                 diff_full = get_commit_diff_text(base_repo_dir=base_worktree, commit=meta.commit)
@@ -90,7 +89,7 @@ class Analyzer:
             })
 
             # MCP mount & server
-            servers = create_child_servers(workdir_post=post, workdir_pre=pre)
+            servers = create_child_servers(workdir_current=current, workdir_previous=previous)
             local_url, main_handle = start_main_server(servers, auth_token=self._mcp_token)
             self._main_handle = main_handle
             logger.info("aggregator_started", extra={
@@ -98,10 +97,8 @@ class Analyzer:
                     "type": "aggregator_started",
                     "local_url": local_url,
                     "mounted": {
-                        "post_repo": bool(servers.post_repo),
-                        "post_debug": bool(servers.post_debug),
-                        "pre_repo": bool(servers.pre_repo),
-                        "pre_debug": bool(servers.pre_debug),
+                        "current_repo": bool(servers.current_repo),
+                        "previous_repo": bool(servers.previous_repo),
                     },
                 }
             })
@@ -123,8 +120,8 @@ class Analyzer:
             prompt = build_prompt(
                 req.ghsa,
                 {"repo_url": meta.repo_url, "commit": meta.commit},
-                has_pre=pre is not None,
-                has_post=post is not None,
+                has_previous=previous is not None,
+                has_current=current is not None,
                 diff_text=diff_text,
             )
             logger.info("llm_input", extra={

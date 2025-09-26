@@ -26,13 +26,12 @@ def test_get_commit_diff_text(tmp_path):
 
 def test_prepare_repos_worktrees(tmp_path):
     base, c1, c2 = _init_repo_with_two_commits(tmp_path)
-    post, pre = prepare_repos(
+    current, previous = prepare_repos(
         cache_dir=tmp_path,
         repo_url=base.as_posix(),
         commit=c2,
-        parent_commit=c1,
         force_reclone=False,
     )
-    assert post and post.exists()
-    assert pre and pre.exists()
+    assert current and current.exists()
+    assert previous and previous.exists()
 

@@ -14,20 +14,39 @@ def _dirs() -> PlatformDirs:
     return PlatformDirs(appname=APP_NAME, appauthor=False)
 
 
+def _get_home_dir() -> Path:
+    """Resolve the application home directory.
+
+    Precedence:
+    - MISPATCH_HOME if set
+    - platformdirs user_cache_dir as base
+    """
+    env = os.environ.get("MISPATCH_HOME")
+    if env:
+        home = Path(os.path.expanduser(os.path.expandvars(env)))
+    else:
+        home = Path(_dirs().user_cache_dir)
+    home.mkdir(parents=True, exist_ok=True)
+    return home
+
+
 def get_cache_dir() -> Path:
-    path = Path(_dirs().user_cache_dir)
+    # Use MISPATCH_HOME base; no per-dir env required
+    path = _get_home_dir() / "cache"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_results_dir() -> Path:
-    path = get_cache_dir() / "results"
+    # Use MISPATCH_HOME base; no per-dir env required
+    path = _get_home_dir() / "results"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_logs_dir() -> Path:
-    path = Path(_dirs().user_log_dir)
+    # Use MISPATCH_HOME base; no per-dir env required
+    path = _get_home_dir() / "logs"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
