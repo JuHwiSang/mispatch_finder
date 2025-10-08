@@ -96,12 +96,9 @@ class Tunnel:
                 if self._stop_event.is_set():
                     break
                 line = raw.strip()
-                try:
-                    logger.debug("tunnel_ssh_line", extra={
-                        "payload": {"type": "ssh_line", "line": line}
-                    })
-                except Exception:
-                    pass
+                logger.debug("tunnel_ssh_line", extra={
+                    "payload": {"type": "ssh_line", "line": line}
+                })
                 m = re.search(r"https://[0-9a-f]+\.lhr\.life", line)
                 if m and not self.public_url:
                     self.public_url = m.group(0)
@@ -117,29 +114,23 @@ class Tunnel:
             time.sleep(0.05)
 
         if self.public_url:
-            try:
-                logger.info("tunnel_ready", extra={
-                    "payload": {
-                        "type": "tunnel_ready",
-                        "public_url": self.public_url,
-                    }
-                })
-            except Exception:
-                pass
+            logger.info("tunnel_ready", extra={
+                "payload": {
+                    "type": "tunnel_ready",
+                    "public_url": self.public_url,
+                }
+            })
             print("\npublic url obtained:", self.public_url)
             return self.public_url
 
         # Failed to obtain URL; clean up and error
         self.stop()
-        try:
-            logger.error("tunnel_failed_to_obtain_url", extra={
-                "payload": {
-                    "type": "tunnel_error",
-                    "reason": "no_public_url",
-                }
-            })
-        except Exception:
-            pass
+        logger.error("tunnel_failed_to_obtain_url", extra={
+            "payload": {
+                "type": "tunnel_error",
+                "reason": "no_public_url",
+            }
+        })
         raise RuntimeError("Failed to obtain public URL from ssh output. Is localhost.run reachable?")
 
     def start(self, host: str, port: int) -> str:

@@ -14,10 +14,7 @@ def build_auth_middleware(expected_token: str) -> Callable[[dict], bool]:
         auth = headers.get(b"authorization")
         if not auth:
             return False
-        try:
-            value = auth.decode("utf-8")
-        except Exception:
-            return False
+        value = auth.decode("utf-8")
         return value.strip() == f"Bearer {expected_token}"
 
     return _middleware

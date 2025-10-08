@@ -5,9 +5,12 @@ import logging
 import sys
 import subprocess
 from pathlib import Path
+import os
+import re
 
 import typer
-from cve_collector import CVECollector
+from cve_collector import list_vulnerabilities, clear_cache
+from cve_collector.core.domain.models import Vulnerability
 
 from .main import run_analysis
 from .config import get_github_token, get_model_api_key, get_cache_dir, get_logs_dir
@@ -88,9 +91,21 @@ def show():
     if not token:
         typer.echo("GitHub token is required (env GITHUB_TOKEN)", err=True)
         raise typer.Exit(code=2)
-    collector = CVECollector(github_token=token)
-    items = collector.collect_identifiers()
-    typer.echo(json.dumps({"items": items}, ensure_ascii=False, indent=2))
+    # Expose token to cve_collector's container
+    if not os.environ.get("GITHUB_TOKEN"):
+        os.environ["GITHUB_TOKEN"] = token
+
+    ghsa_pattern = re.compile(r"^GHSA-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+$")
+
+    vulns: list[Vulnerability] = list(list_vulnerabilities(ecosystem="npm", limit=500, detailed=False))
+    ghsa_items: list[str] = []
+    seen: set[str] = set()
+    for v in vulns:
+        ghsa = v.ghsa_id
+        if ghsa_pattern.match(ghsa) and ghsa not in seen:
+            seen.add(ghsa)
+            ghsa_items.append(ghsa)
+    typer.echo(json.dumps({"items": ghsa_items}, ensure_ascii=False, indent=2))
 
 
 
@@ -101,19 +116,10 @@ def clear():
     typer.echo("Clearing local caches/results and CVE collector state...")
     
     cache_dir = get_cache_dir()
-    removed = []
-    errors: list[str] = []
-    try:
-        rmtree_force(cache_dir)
-        removed.append(str(cache_dir))
-    except Exception as e:
-        errors.append(f"cache_dir: {e}")
+    rmtree_force(cache_dir)
 
     # Clear CVE collector's local state
-    try:
-        CVECollector.clear_local_state()
-    except Exception as e:
-        errors.append(f"cve_collector: {e}")
+    clear_cache()
 
     typer.echo("Cleared local caches/results and CVE collector state.")
 
@@ -138,21 +144,13 @@ def log(
             raise typer.Exit(code=2)
         # With --verbose, dump full JSONL
         if verbose:
-            try:
-                for line in log_fp.read_text(encoding="utf-8").splitlines():
-                    typer.echo(line)
-            except Exception as e:
-                typer.echo(f"Failed to read log file: {e}", err=True)
-                raise typer.Exit(code=1)
+            for line in log_fp.read_text(encoding="utf-8").splitlines():
+                typer.echo(line)
             return
         # Otherwise, print concise summary with fallbacks
-        try:
-            details = parse_log_details(log_fp)
-            for line in format_single_summary(details):
-                typer.echo(line)
-        except Exception as e:
-            typer.echo(f"Failed to summarize log file: {e}", err=True)
-            raise typer.Exit(code=1)
+        details = parse_log_details(log_fp)
+        for line in format_single_summary(details):
+            typer.echo(line)
         return
 
     summaries = summarize_logs(logs_dir, verbose=verbose)
@@ -178,8 +176,17 @@ def all(
     if not token:
         typer.echo("GitHub token is required (env GITHUB_TOKEN)", err=True)
         raise typer.Exit(code=2)
-    collector = CVECollector(github_token=token)
-    items = collector.collect_identifiers()
+    if not os.environ.get("GITHUB_TOKEN"):
+        os.environ["GITHUB_TOKEN"] = token
+
+    ghsa_pattern = re.compile(r"^GHSA-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+$")
+
+    items_set: set[str] = set()
+    for v in list_vulnerabilities(ecosystem="npm", limit=1000, detailed=False):
+        ghsa = v.ghsa_id
+        if ghsa_pattern.match(ghsa):
+            items_set.add(ghsa)
+    items = list(items_set)
 
     # Summarize existing logs
     logs_dir = get_logs_dir()

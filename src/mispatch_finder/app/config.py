@@ -74,10 +74,7 @@ def get_prompt_diff_max_chars(env_var: str = "MISPATCH_DIFF_MAX_CHARS") -> int:
     val = os.environ.get(env_var)
     if not val:
         return default
-    try:
-        num = int(val)
-        return num if num > 0 else default
-    except Exception:
-        return default
+    num = int(val)
+    return num if num > 0 else default
 
 

@@ -116,7 +116,7 @@ Credentials are read from environment variables:
 - GitHub token: `GITHUB_TOKEN`
 
 ### `mispatch_finder show`
-- List available GHSA identifiers via `CVECollector` (requires `GITHUB_TOKEN`).
+- List available GHSA identifiers via new `cve_collector` API (requires `GITHUB_TOKEN`).
 
 ### `mispatch_finder clear`
 - Clear local caches/results and CVE collector local state.
@@ -185,7 +185,7 @@ Output JSON fields:
 - MCP mounts: use dataclass `ServerMap` with optional `previous_repo`; prefixes use underscores (e.g., `/current_repo`).
 - Prompt: include unified diff of the patched commit; respects `MISPATCH_DIFF_MAX_CHARS` with middle truncation.
 - Repo prep: worktrees for previous/current; parent commit auto-derived when missing.
-- `show` command: when no GHSA provided, lists cached result summaries.
+- `show` command: now lists GHSA identifiers from `cve_collector.list_vulnerabilities` via `Vulnerability.ghsa_id` only.
 - OpenAI adapter: Responses API tools use dict-based `ToolParam` with `{"type":"mcp", ...}` and `tool_choice="auto"`.
 - Test suite implemented: pytest with unit/integration markers; only `itdev_llm_adapter` is mocked; tunnel is stubbed in integration; CLI tests use `CliRunner`.
 
@@ -257,7 +257,7 @@ Output JSON fields:
 - Imports: placed at the top of the module. No local imports inside functions.
 - Types: avoid `Any`, avoid `type: ignore`. Use explicit dataclasses and precise types.
 - No dynamic duck-typing helpers for core logic (no `getattr`/`hasattr` fallbacks). Prefer explicit attributes and narrow APIs.
-- Error handling: fail fast; no broad catch unless necessary. Never swallow exceptions silently.
+- Error handling: fail fast; no broad catch unless necessary. Never swallow exceptions silently. No blanket try/except; let exceptions bubble unless there is a clear recovery rationale (e.g., per-line JSON tolerance in log parsing).
 - Naming: descriptive variables; functions as verbs; consistent snake_case.
 
 ### LLM Adapter Interface

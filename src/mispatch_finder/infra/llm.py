@@ -42,14 +42,11 @@ def call_llm(
             }
         })
     # Best-effort: if the model returned markup or extra text, try to extract JSON block
-    try:
-        start = text.find('{')
-        end = text.rfind('}')
-        if start != -1 and end != -1 and end > start:
-            parsed = json.loads(text[start:end+1])
-            return json.dumps(parsed, ensure_ascii=False)
-    except Exception:
-        pass
+    start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        parsed = json.loads(text[start:end+1])
+        return json.dumps(parsed, ensure_ascii=False)
     return text
 
 

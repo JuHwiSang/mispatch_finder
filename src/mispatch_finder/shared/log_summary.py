@@ -45,87 +45,74 @@ def parse_log_details(fp: Path) -> LogDetails:
     """
     details = LogDetails(ghsa_id=fp.stem)
 
-    try:
-        for line in fp.read_text(encoding="utf-8").splitlines():
-            try:
-                obj = json.loads(line)
-            except Exception:
-                continue
+    for line in fp.read_text(encoding="utf-8").splitlines():
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
 
-            msg = obj.get("message")
-            payload = obj.get("payload") or {}
+        msg = obj.get("message")
+        payload = obj.get("payload") or {}
 
-            # model (early)
-            if msg == "run_started":
+        # model (early)
+        if msg == "run_started":
+            m = payload.get("model")
+            if isinstance(m, str):
+                details.model = details.model or m
+
+        # ghsa meta (repo url / commit)
+        if msg == "ghsa_meta":
+            meta = payload.get("meta") or {}
+            repo_url = meta.get("repo_url")
+            commit = meta.get("commit")
+            if isinstance(repo_url, str):
+                details.repo_url = repo_url
+            if isinstance(commit, str):
+                details.commit = commit
+            ghsa = payload.get("ghsa")
+            if isinstance(ghsa, str):
+                details.ghsa_id = ghsa
+
+        # final result (risks and reasoning)
+        if msg == "final_result":
+            res = payload.get("result") or {}
+            m = res.get("model")
+            if isinstance(m, str):
+                details.model = details.model or m
+            raw_text = res.get("raw_text")
+            if isinstance(raw_text, str) and raw_text.strip():
+                j = None
                 try:
-                    m = payload.get("model")
-                    if isinstance(m, str):
-                        details.model = details.model or m
+                    j = json.loads(raw_text)
                 except Exception:
-                    pass
+                    j = None
+                if isinstance(j, dict):
+                    cur = j.get("current_risk")
+                    pat = j.get("patch_risk")
+                    if isinstance(cur, str) and not details.current_risk:
+                        details.current_risk = cur
+                    if isinstance(pat, str) and not details.patch_risk:
+                        details.patch_risk = pat
+                    reason = j.get("reason")
+                    if isinstance(reason, str) and not details.reason:
+                        details.reason = reason
+                    poc = j.get("poc")
+                    if isinstance(poc, str) and not details.poc:
+                        details.poc = poc
 
-            # ghsa meta (repo url / commit)
-            if msg == "ghsa_meta":
-                try:
-                    meta = payload.get("meta") or {}
-                    repo_url = meta.get("repo_url")
-                    commit = meta.get("commit")
-                    if isinstance(repo_url, str):
-                        details.repo_url = repo_url
-                    if isinstance(commit, str):
-                        details.commit = commit
-                    ghsa = payload.get("ghsa")
-                    if isinstance(ghsa, str):
-                        details.ghsa_id = ghsa
-                except Exception:
-                    pass
-
-            # final result (risks and reasoning)
-            if msg == "final_result":
-                try:
-                    res = payload.get("result") or {}
-                    m = res.get("model")
-                    if isinstance(m, str):
-                        details.model = details.model or m
-                    raw_text = res.get("raw_text")
-                    if isinstance(raw_text, str) and raw_text.strip():
-                        try:
-                            j = json.loads(raw_text)
-                        except Exception:
-                            j = None
-                        if isinstance(j, dict):
-                            cur = j.get("current_risk")
-                            pat = j.get("patch_risk")
-                            if isinstance(cur, str) and not details.current_risk:
-                                details.current_risk = cur
-                            if isinstance(pat, str) and not details.patch_risk:
-                                details.patch_risk = pat
-                            reason = j.get("reason")
-                            if isinstance(reason, str) and not details.reason:
-                                details.reason = reason
-                            poc = j.get("poc")
-                            if isinstance(poc, str) and not details.poc:
-                                details.poc = poc
-
-                            # legacy fallbacks
-                            if not details.patch_risk:
-                                sev = j.get("severity")
-                                if isinstance(sev, str):
-                                    details.patch_risk = sev
-                            if not details.reason:
-                                r = j.get("rationale")
-                                if isinstance(r, str):
-                                    details.reason = r
-                            if not details.poc:
-                                pi = j.get("poc_idea")
-                                if isinstance(pi, str):
-                                    details.poc = pi
-                except Exception:
-                    pass
-    except Exception:
-        # Best effort: return whatever could be derived
-        return details
-
+                    # legacy fallbacks
+                    if not details.patch_risk:
+                        sev = j.get("severity")
+                        if isinstance(sev, str):
+                            details.patch_risk = sev
+                    if not details.reason:
+                        r = j.get("rationale")
+                        if isinstance(r, str):
+                            details.reason = r
+                    if not details.poc:
+                        pi = j.get("poc_idea")
+                        if isinstance(pi, str):
+                            details.poc = pi
     return details
 
 
@@ -142,12 +129,11 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
     total_tokens = 0
     done = False
 
-    try:
-        for line in fp.read_text(encoding="utf-8").splitlines():
-            try:
-                obj = json.loads(line)
-            except Exception:
-                continue
+    for line in fp.read_text(encoding="utf-8").splitlines():
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
 
             msg = obj.get("message")
             if msg == "mcp_request":
@@ -158,22 +144,16 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
                 else:
                     mcp_total_calls += 1
                     if verbose:
-                        try:
-                            message = payload.get("message", {})
-                            tool_name = message.get("name")
-                            if tool_name:
-                                mcp_tool_counts[tool_name] = mcp_tool_counts.get(tool_name, 0) + 1
-                        except Exception:
-                            pass
+                        message = payload.get("message", {})
+                        tool_name = message.get("name")
+                        if tool_name:
+                            mcp_tool_counts[tool_name] = mcp_tool_counts.get(tool_name, 0) + 1
 
             elif msg == "llm_usage":
-                try:
-                    payload = obj.get("payload", {})
-                    tokens = payload.get("total_tokens")
-                    if isinstance(tokens, int):
-                        total_tokens += tokens
-                except Exception:
-                    pass
+                payload = obj.get("payload", {})
+                tokens = payload.get("total_tokens")
+                if isinstance(tokens, int):
+                    total_tokens += tokens
 
             payload = obj.get("payload") or {}
             typ = payload.get("type") if isinstance(payload, dict) else None
@@ -222,16 +202,10 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
                 m = res.get("model")
                 if m:
                     model = str(m)
-    except Exception:
-        pass
-
     if not run_date:
-        try:
-            import datetime as _dt
-            ts = fp.stat().st_mtime
-            run_date = _dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            run_date = ""
+        import datetime as _dt
+        ts = fp.stat().st_mtime
+        run_date = _dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
     return RunSummary(
         ghsa_id=ghsa_id,

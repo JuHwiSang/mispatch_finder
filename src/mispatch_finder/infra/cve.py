@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from typing import Optional
 
-from cve_collector import CVECollector
+from cve_collector import detail
+from cve_collector.core.domain.models import Vulnerability, Repository, Commit
 
 
 @dataclass
@@ -42,28 +44,41 @@ def _choose_commit(commits: list[str]) -> Optional[str]:
 
 
 def fetch_ghsa_metadata(ghsa: str, *, github_token: Optional[str]) -> GHSAInfo:
-    """Fetch GHSA metadata via cve_collector using its CVE structure.
+    """Fetch GHSA metadata via cve_collector's new module API.
 
-    - Builds `repo_url` from CVE.repo (expects "owner/name").
-    - Picks the first commit from CVE.commits.
+    - Uses `detail(ghsa)` to obtain a `Vulnerability`.
+    - Builds `repo_url` from vulnerability's repo attribute (expects "owner/name" or URL).
+    - Picks a reasonable commit from vulnerability's commits.
     - Raises ValueError when either is missing.
     """
-    collector = CVECollector(github_token=github_token or "")
-    cve = collector.collect_one(ghsa)
+    # Best-effort: ensure token available to the underlying collector when provided
+    if github_token and not os.environ.get("GITHUB_TOKEN"):
+        os.environ["GITHUB_TOKEN"] = github_token
 
-    if not cve.repo:
-        raise ValueError(f"GHSA metadata missing repo (ghsa={ghsa})")
-    repo_url = _normalize_repo_url(cve.repo)
+    v = detail(ghsa)
+    if v is None:
+        raise ValueError(f"GHSA not found (ghsa={ghsa})")
 
-    commit = _choose_commit(cve.commits)
+    # Extract repository identifier explicitly
+    if not v.repositories:
+        raise ValueError(f"GHSA metadata missing repositories (ghsa={ghsa})")
+    repo: Repository = v.repositories[0]
+    repo_url_raw = repo.url
+    if repo_url_raw is None:
+        owner = repo.owner
+        name = repo.name
+        if owner is None or name is None:
+            raise ValueError(f"GHSA repository missing owner/name (ghsa={ghsa})")
+        repo_url_raw = f"{owner}/{name}"
+    repo_url = _normalize_repo_url(repo_url_raw)
+
+    # Extract commit candidates explicitly
+    commits: tuple[Commit, ...] = v.commits
+    commit_candidates: list[str] = [c.hash for c in commits]
+    commit = _choose_commit(commit_candidates)
     if not commit:
         raise ValueError(f"GHSA metadata missing commit (ghsa={ghsa})")
 
-    return GHSAInfo(
-        ghsa=ghsa,
-        repo_url=repo_url,
-        commit=commit,
-        parent_commit=None,
-    )
+    return GHSAInfo(ghsa=ghsa, repo_url=repo_url, commit=commit, parent_commit=None)
 
 

@@ -78,11 +78,8 @@ def prepare_repos(
     current = base
 
     # Determine parent commit of the target commit
-    try:
-        commit_obj = repo.commit(commit)
-        parent = commit_obj.parents[0] if commit_obj.parents else None
-    except Exception:
-        parent = None
+    commit_obj = repo.commit(commit)
+    parent = commit_obj.parents[0] if commit_obj.parents else None
 
     if parent is not None:
         previous_repo = _copy_repo(base, previous, overwrite=force_reclone)
