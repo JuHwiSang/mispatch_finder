@@ -135,73 +135,73 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
         except Exception:
             continue
 
-            msg = obj.get("message")
-            if msg == "mcp_request":
-                payload = obj.get("payload", {})
-                # exclude inventory listing calls
-                if payload.get("method") == "tools/list":
+        msg = obj.get("message")
+        if msg == "mcp_request":
+            payload = obj.get("payload", {})
+            # exclude inventory listing calls
+            if payload.get("method") == "tools/list":
+                pass
+            else:
+                mcp_total_calls += 1
+                if verbose:
+                    message = payload.get("message", {})
+                    tool_name = message.get("name")
+                    if tool_name:
+                        mcp_tool_counts[tool_name] = mcp_tool_counts.get(tool_name, 0) + 1
+
+        elif msg == "llm_usage":
+            payload = obj.get("payload", {})
+            tokens = payload.get("total_tokens")
+            if isinstance(tokens, int):
+                total_tokens += tokens
+
+        payload = obj.get("payload") or {}
+        typ = payload.get("type") if isinstance(payload, dict) else None
+
+        if typ == "run_started" and not run_date:
+            # No timestamp in formatter; we will use file mtime as proxy later
+            run_date = ""
+            if not model:
+                model = payload.get("model") or model
+
+        if typ == "final_result":
+            done = True
+            res = payload.get("result") or {}
+            raw_text = res.get("raw_text")
+            if raw_text:
+                try:
+                    j = json.loads(raw_text)
+                    if isinstance(j, dict):
+                        cur = j.get("current_risk")
+                        pat = j.get("patch_risk")
+                        rsn = j.get("reason")
+                        pc = j.get("poc")
+                        if isinstance(cur, str):
+                            current_risk = cur
+                        if isinstance(pat, str):
+                            patch_risk = pat
+                        if isinstance(rsn, str):
+                            reason = rsn
+                        if isinstance(pc, str):
+                            poc = pc
+                        # legacy fallbacks
+                        if not patch_risk:
+                            sev = j.get("severity")
+                            if isinstance(sev, str):
+                                patch_risk = sev
+                        if not reason:
+                            r = j.get("rationale")
+                            if isinstance(r, str):
+                                reason = r
+                        if not poc:
+                            pi = j.get("poc_idea")
+                            if isinstance(pi, str):
+                                poc = pi
+                except (json.JSONDecodeError, TypeError):
                     pass
-                else:
-                    mcp_total_calls += 1
-                    if verbose:
-                        message = payload.get("message", {})
-                        tool_name = message.get("name")
-                        if tool_name:
-                            mcp_tool_counts[tool_name] = mcp_tool_counts.get(tool_name, 0) + 1
-
-            elif msg == "llm_usage":
-                payload = obj.get("payload", {})
-                tokens = payload.get("total_tokens")
-                if isinstance(tokens, int):
-                    total_tokens += tokens
-
-            payload = obj.get("payload") or {}
-            typ = payload.get("type") if isinstance(payload, dict) else None
-
-            if typ == "run_started" and not run_date:
-                # No timestamp in formatter; we will use file mtime as proxy later
-                run_date = ""
-                if not model:
-                    model = payload.get("model") or model
-
-            if typ == "final_result":
-                done = True
-                res = payload.get("result") or {}
-                raw_text = res.get("raw_text")
-                if raw_text:
-                    try:
-                        j = json.loads(raw_text)
-                        if isinstance(j, dict):
-                            cur = j.get("current_risk")
-                            pat = j.get("patch_risk")
-                            rsn = j.get("reason")
-                            pc = j.get("poc")
-                            if isinstance(cur, str):
-                                current_risk = cur
-                            if isinstance(pat, str):
-                                patch_risk = pat
-                            if isinstance(rsn, str):
-                                reason = rsn
-                            if isinstance(pc, str):
-                                poc = pc
-                            # legacy fallbacks
-                            if not patch_risk:
-                                sev = j.get("severity")
-                                if isinstance(sev, str):
-                                    patch_risk = sev
-                            if not reason:
-                                r = j.get("rationale")
-                                if isinstance(r, str):
-                                    reason = r
-                            if not poc:
-                                pi = j.get("poc_idea")
-                                if isinstance(pi, str):
-                                    poc = pi
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                m = res.get("model")
-                if m:
-                    model = str(m)
+            m = res.get("model")
+            if m:
+                model = str(m)
     if not run_date:
         import datetime as _dt
         ts = fp.stat().st_mtime
