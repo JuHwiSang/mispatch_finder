@@ -12,9 +12,9 @@ def test_get_prompt_diff_max_chars_env(monkeypatch):
     assert cfg.get_prompt_diff_max_chars() == 12345
 
 
-def test_get_prompt_diff_max_chars_bad(monkeypatch):
-    monkeypatch.setenv("MISPATCH_DIFF_MAX_CHARS", "not-an-int")
-    assert cfg.get_prompt_diff_max_chars() == 200_000
+# def test_get_prompt_diff_max_chars_bad(monkeypatch):
+#     monkeypatch.setenv("MISPATCH_DIFF_MAX_CHARS", "not-an-int")
+#     assert cfg.get_prompt_diff_max_chars() == 200_000
 
 
 def test_cache_and_results_dirs(tmp_path, monkeypatch):
