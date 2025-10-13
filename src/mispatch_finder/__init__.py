@@ -1,6 +1,11 @@
-from .app.main import run_analysis, show_results
+from .app.main import run_analysis, list_ghsa_ids, clear_all_caches, show_log
 
-__all__ = ["run_analysis", "show_results"]
+__all__ = [
+    "run_analysis",
+    "list_ghsa_ids",
+    "clear_all_caches",
+    "show_log",
+]
 
 # stdlib logging defaults: attach NullHandler to prevent 'No handler' warnings
 import logging

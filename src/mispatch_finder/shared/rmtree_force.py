@@ -16,6 +16,8 @@ def _remove_readonly(func: Callable[[str], None], path: str, excinfo) -> None:
     func(path)
 
 def rmtree_force(path: Path):
+    if not path.exists():
+        return
     try:
         shutil.rmtree(path)
     except PermissionError:

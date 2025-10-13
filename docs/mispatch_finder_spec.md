@@ -8,6 +8,7 @@ Detect whether historical GHSA patches were correct or potentially left residual
 - Reproducible, cacheable repo preparation (previous/current workdirs)
 - Secure, ephemeral MCP exposure via localhost.run with one-shot Authorization (FastMCP + StaticTokenVerifier)
 - Provider-agnostic LLM invocation (OpenAI/Anthropic) via `itdev_llm_adapter`
+- Clean DDD architecture with dependency inversion
 
 ### Out-of-Scope (now)
 - Non-GHSA identifiers (CVE) as primary key
@@ -20,51 +21,99 @@ Detect whether historical GHSA patches were correct or potentially left residual
 2) Prepare two cached working directories (copy-based):
    - current: repository's present state (current HEAD)
    - previous: checkout parent of the patched commit (if none, mark previous as unavailable)
-3) Start child MCP servers conditionally and mount under prefixes:
-   - current_repo: repo_read_mcp
-   - previous_repo: repo_read_mcp (if parent exists)
-4) Aggregate under a main FastMCP with Authorization (StaticTokenVerifier) and wiretap logging.
-5) Expose main server via localhost.run (SSH reverse tunnel) and capture public URL.
-6) Build a single `Toolset` to the aggregator `/mcp` with bearer token and call the LLM with prompt+metadata.
-7) Persist and present the result.
+3) Start child MCP servers, aggregator, and tunnel in one integrated step
+4) Call LLM with prompt, metadata, and MCP context
+5) Persist and return result
 
 ---
 
-## Senior Folder Structure (current)
+## DDD Architecture (Current)
+
+### Folder Structure
 ```
 src/mispatch_finder/
-  app/                     # Presentation + orchestration
-    cli.py                 # Typer/argparse CLI only (I/O & args)
-    main.py                # Public Python API; orchestrates end-to-end run
-    config.py              # Platformdirs, tokens from env, defaults
-    models.py              # DTOs: AnalysisRequest/Result, RepoContext, etc.
-    prompts.py             # Prompt builders/templates
-  core/                    # Business logic
-    analyze.py             # Main analyze() combining GHSA meta + MCP + LLM
-    toolset.py             # Tool availability map (slash-style keys)
-  infra/                   # External boundaries (adapters, side effects)
-    cve.py                 # cve_collector wrapper
-    git_repo.py            # git clone/fetch/checkout, caching
-    mcp/
-      mounts.py            # create repo_read_mcp servers
-      aggregator.py        # compose main FastMCP + security middleware + wiretap
-      wiretap_logging.py   # logging middleware for MCP request/response events
-      security.py          # Lightweight auth middleware helper (legacy/minimal)
-      tunnel.py            # localhost.run ssh lifecycle
-    llm.py                 # itdev_llm_adapter usage helpers
-    store.py               # JSON result cache read/write
-  shared/
-    fastapi_raw_log.py     # MCP wiretap middleware (raw request/response log)
-    list_tools.py          # Utility to list mounted tools
-    rmtree_force.py        # Robust directory removal
-    to_jsonable.py         # Safe converter for logging payloads
-    log_summary.py         # Dataclass-based log summarizer and table formatter
+  app/                          # Application Layer
+    cli.py                      # Typer CLI commands (run, show, clear, log, all)
+    main.py                     # Application facade functions
+    config.py                   # Configuration from env/platformdirs
+    container.py                # Dependency injection container
+
+  core/                         # Core Domain Layer
+    domain/
+      models.py                 # Domain models (AnalysisRequest, AnalysisResult, RepoContext)
+      prompt.py                 # Prompt building logic
+    usecases/
+      run_analysis.py           # RunAnalysisUseCase
+      list_ghsa.py              # ListGHSAUseCase
+      clear_cache.py            # ClearCacheUseCase
+      show_log.py               # ShowLogUseCase
+    ports.py                    # Port protocols (interfaces)
+
+  infra/                        # Infrastructure Layer
+    adapters/                   # All logic consolidated here
+      vulnerability_repository.py  # VulnerabilityRepositoryPort impl
+      repository.py                # RepositoryPort impl (git operations)
+      mcp_server.py                # MCPServerPort impl (child+aggregator+tunnel integrated)
+      llm.py                       # LLMPort impl (itdev_llm_adapter wrapper)
+      result_store.py              # ResultStorePort impl (JSON persistence)
+      log_store.py                 # LogStorePort impl (log parsing/formatting)
+      cache.py                     # CachePort impl (directory cleanup)
+    mcp/                        # MCP support modules
+      tunnel.py                    # localhost.run SSH tunnel
+      wiretap_logging.py           # MCP request/response logging middleware
+      security.py                  # Auth helpers (legacy, minimal use)
+
+  shared/                       # Shared utilities
+    json_logging.py             # Structured JSON logging
+    log_summary.py              # Log parsing and formatting
+    rmtree_force.py             # Robust directory removal
+    to_jsonable.py              # Object serialization
+    list_tools.py               # MCP tool listing
 ```
 
-Rationale:
-- app: inputs/outputs; no business rules
-- core: composition of domain behavior, provider-agnostic
-- infra: side-effecting code (network, disk, processes)
+### Dependency Flow
+```
+app (CLI/main)
+  ↓ uses
+core/usecases
+  ↓ depends on
+core/ports (protocols)
+  ↑ implemented by
+infra/adapters
+  ↓ uses
+infra/* (low-level implementations)
+```
+
+### Key Principles
+- **Dependency Inversion**: Core depends only on ports (protocols), never on infra directly
+- **Use Case per Command**: Each CLI command maps to a dedicated use case class
+- **Constructor Injection**: Adapters receive config in `__init__`, not per-method call
+- **No Duck Typing**: Explicit types, no `getattr`/`hasattr`/`Any`/`cast`
+- **Minimal Try/Except**: Let exceptions bubble unless there's a clear recovery strategy
+- **DI Container**: `dependency-injector` wires all dependencies
+- **No Wrapper Layers**: Adapters implement logic directly, no intermediate infra files
+
+---
+
+## Ports (Protocols)
+
+### VulnerabilityRepositoryPort
+- `fetch_metadata(ghsa: str) -> GHSAMeta`
+- `list_ids(limit: int) -> list[str]`
+- `clear_cache() -> None`
+
+### RepositoryPort
+- `prepare_workdirs(...) -> (current, previous)`
+- `get_diff(workdir, commit) -> str`
+
+### MCPServerPort
+- `start_servers(...) -> MCPServerContext` (integrated: child servers + aggregator + tunnel)
+
+### LLMPort
+- `call(prompt, mcp_url, mcp_token) -> str`
+
+### ResultStorePort, LogStorePort, CachePort
+- Standard CRUD and management operations
 
 ---
 
@@ -73,227 +122,352 @@ Rationale:
 - GitHub token: from env `GITHUB_TOKEN` (used by `cve_collector`)
 - Unified LLM API key: from env `MODEL_API_KEY` (fallbacks: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
-### Ephemeral MCP Authorization Token (one-shot)
-- Generated per analysis session (per-instance, not global process):
-  - Create cryptographically secure random string (`secrets.token_urlsafe(32)`)
-  - Never accept injection from external callers
-  - Stored only in memory in the analyzer object; not persisted
-- Injection points:
-  - Main FastMCP security middleware checks header `Authorization: Bearer <token>`
-  - OpenAI adapter: Toolset contributes `headers.Authorization` or `bearer_token` → Responses API `tools` include headers
-  - Anthropic adapter: each `mcp_servers` entry includes `authorization_token`
-- Lifecycle:
-  - Created at analysis start
-  - Attached to MCP server on create (middleware)
-  - Passed to LLM Toolset
-  - Destroyed when analysis completes (server shutdown), reference dropped
+### Ephemeral MCP Authorization Token
+- Generated per analysis via `TokenGeneratorPort`
+- `secrets.token_urlsafe(32)` - never persisted
+- Lifecycle: created → attached to MCP middleware → passed to LLM → destroyed on cleanup
 
 ---
 
 ## Configuration
-- Diff size cap for prompts: `MISPATCH_DIFF_MAX_CHARS` (default: 200_000)
-  - If the unified diff exceeds the cap, it is middle-truncated (head + tail joined with `...`).
- - Cache base: user cache directory via `platformdirs`. Results saved under `<cache>/results/`.
- - Directory configuration (dotenv loaded only by CLI):
-   - `MISPATCH_HOME` (base dir). The app creates subfolders `cache/`, `results/`, `logs/` automatically.
+- Diff size cap: `MISPATCH_DIFF_MAX_CHARS` (default: 200_000)
+  - Middle-truncation when exceeded
+- Cache base: `platformdirs.user_cache_dir("mispatch-finder")`
+  - `cache/`: git repos, worktrees
+  - `results/`: analysis JSON outputs
+  - `logs/`: structured JSONL logs
 
 ---
 
 ## CLI Commands
+
 ### `mispatch_finder run GHSA-xxxx-xxxx-xxxx`
+**Use Case**: `RunAnalysisUseCase`
+
 Options:
 - `--provider [openai|anthropic]` (default: openai)
 - `--model TEXT` (required)
 - `--log-level [INFO|DEBUG]`
-- `--force-reclone` (optional)
+- `--force-reclone`
 
 Behavior:
-1. Fetch GHSA meta → clone/checkout → start MCP → tunnel → call LLM
-2. Print JSON result; persist to cache
-
-Credentials are read from environment variables:
-- LLM API key: `MODEL_API_KEY` (fallbacks: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
-- GitHub token: `GITHUB_TOKEN`
+1. Resolve secrets from env (`MODEL_API_KEY`, `GITHUB_TOKEN`)
+2. Execute use case: fetch metadata → prepare repos → start MCP+tunnel → call LLM → save result
+3. Print JSON result
 
 ### `mispatch_finder show`
-- List available GHSA identifiers via new `cve_collector` API (requires `GITHUB_TOKEN`).
+**Use Case**: `ListGHSAUseCase`
+
+Lists available GHSA identifiers from `cve_collector` (npm ecosystem, limit 500).
 
 ### `mispatch_finder clear`
-- Clear local caches/results and CVE collector local state.
+**Use Case**: `ClearCacheUseCase`
+
+Clears application cache and `cve_collector` cache.
 
 ### `mispatch_finder log [GHSA-xxxx-xxxx-xxxx]`
+**Use Case**: `ShowLogUseCase`
+
 Options:
 - `--verbose`/`-v`
 
 Behavior:
-- When GHSA is provided:
-  - With `--verbose`: prints raw JSONL lines from `<cache>/logs/<GHSA>.jsonl`.
-  - Without `--verbose`: prints a concise summary block with fallbacks (GHSA, Repo URL, Commit, Model, Patch Risk, Current Risk, Reason, PoC if any).
-- When GHSA is omitted: prints a right-aligned summary table for all `logs/*.jsonl` with columns:
-  - GHSA, Current, Patch, Model, MCP Calls, Tokens, RunDate
-  - MCP Calls: counts `mcp_request` events but excludes entries where `payload.method == "tools/list"`.
-  - Tokens: sums `llm_usage.payload.total_tokens` across the run.
-  - RunDate: approximated from the log file's modified time.
-  - Verdict derivation: prefer `current_risk`, then `patch_risk`. Legacy `severity` may populate `patch_risk` when present.
-- With `--verbose`: appends MCP tool call details as `(NAME: NUM, NAME: NUM, ...)`.
+- With GHSA: print single log (raw JSONL if verbose, summary otherwise)
+- Without GHSA: print table of all logs
 
 ### `mispatch_finder all`
 Options:
-- `--provider [openai|anthropic]` (default: openai)
-- `--model TEXT` (required)
-- `--limit`/`-n` INTEGER (optional)
+- `--provider`, `--model`, `--limit`
 
 Behavior:
- - Uses the same source as `show` to obtain GHSA identifiers.
- - Summarizes existing logs and skips IDs that already have a completed run (presence of `final_result`).
- - Runs analysis (`run`) for remaining IDs, respecting `--limit`.
+- List GHSA IDs
+- Filter out completed runs (check logs)
+- Run analysis for pending IDs via subprocess
 
 ---
 
-## Prompt Contract (current)
-Model input includes:
-- GHSA metadata summary
-- Availability note of MCP tools (previous/current), using a simple map:
-  - core/toolset: `{"previous/repo": bool, "current/repo": bool}`
-  - aggregator mounts actually use underscore prefixes: `/previous_repo`, `/current_repo`
-- Unified diff of the patched commit (may be truncated by size cap)
-- Tasks:
-  - Rate patch adequacy from the previous state
-  - Rate whether the current repository still has a risk
-  - Provide a succinct reason and optional PoC (prefer code)
-Output JSON fields:
-- `patch_risk`: "good" | "low" | "medium" | "high"
-- `current_risk`: "good" | "low" | "medium" | "high"
-- `reason`: str
-- `poc?`: str
+## Prompt Contract
+Model input:
+- GHSA metadata
+- MCP tool availability (previous/current)
+- Unified diff (truncated if needed)
+- Tasks: rate patch adequacy, rate current risk, provide PoC
+
+Output JSON:
+```json
+{
+  "patch_risk": "good" | "low" | "medium" | "high",
+  "current_risk": "good" | "low" | "medium" | "high",
+  "reason": "...",
+  "poc": "..."
+}
+```
 
 ---
 
-## Testing Plan
-- Unit: token generation (core), git commands (infra), toolset assembly, tunnel URL parsing
-- Integration (stubbed tunnel): cve_collector → repo prep → MCP mounts → LLM adapter call
-- CLI smoke: argument parsing and dispatch
+## Testing Strategy (Current)
+
+### Structure
+```
+tests/
+  mispatch_finder/
+    core/              # Unit tests for use cases, domain, ports
+    infra/             # Integration tests for adapters
+    app/               # E2E tests for CLI and main facade
+    shared/            # Tests for shared utilities
+  itdev_llm_adapter/   # Tests for LLM adapter package
+```
+
+### Test Count: **90+ tests** across all layers
+
+### Mapping
+- **core (17 tests)**: Fast unit tests with fake port implementations
+  - Domain models (`RepoContext`, `AnalysisRequest`, `AnalysisResult`)
+  - Prompt building with all edge cases
+  - Use case execution (`RunAnalysis`, `ListGHSA`, `ClearCache`, `ShowLog`)
+  
+- **infra (28 tests)**: Integration tests with real dependencies
+  - VulnerabilityRepository: URL normalization, commit selection, GHSA fetching
+  - Repository: Git workdir preparation, diff generation
+  - ResultStore, LogStore: JSON persistence and parsing
+  - Cache: Directory cleanup with readonly files
+  - LLM: JSON extraction, toolset handling
+  
+- **app (24 tests)**: E2E tests with mocked external services
+  - CLI commands: `run`, `show`, `clear`, `log` with all options
+  - Facade functions: `run_analysis`, `list_ghsa_ids`, `clear_all_caches`, `show_log`
+  - Error handling: missing tokens, invalid args
+  - Full workflow integration
+  
+- **shared (21 tests)**: Utility function tests
+  - JSON serialization (`to_jsonable`) for all Python types
+  - Force directory removal (`rmtree_force`) with edge cases
+  - Structured JSON logging with payloads
+  - Log summary parsing
+
+### Key Test Files
+- `tests/mispatch_finder/core/test_usecases.py`: Use case execution with fake ports
+- `tests/mispatch_finder/core/test_usecases_show_log.py`: ShowLog use case scenarios
+- `tests/mispatch_finder/core/test_domain_models.py`: All domain model creation and defaults
+- `tests/mispatch_finder/core/test_domain_prompt.py`: Prompt building with all states
+- `tests/mispatch_finder/infra/test_vulnerability_repository.py`: CVE collector integration
+- `tests/mispatch_finder/infra/test_git_repo.py`: Git operations
+- `tests/mispatch_finder/infra/test_store.py`: Result persistence
+- `tests/mispatch_finder/infra/test_llm.py`: LLM adapter with JSON extraction
+- `tests/mispatch_finder/infra/test_cache.py`: Cache clearing
+- `tests/mispatch_finder/infra/test_log_store.py`: Log reading and summarization
+- `tests/mispatch_finder/app/test_main_e2e.py`: Full run_analysis flow
+- `tests/mispatch_finder/app/test_main_facade.py`: Facade function integration
+- `tests/mispatch_finder/app/test_cli.py`: Basic CLI execution
+- `tests/mispatch_finder/app/test_cli_commands.py`: All CLI commands and options
+- `tests/mispatch_finder/app/test_config.py`: Configuration loading
+- `tests/mispatch_finder/shared/test_to_jsonable.py`: JSON serialization
+- `tests/mispatch_finder/shared/test_rmtree_force.py`: Robust directory removal
+- `tests/mispatch_finder/shared/test_json_logging.py`: Structured logging
+
+### Running Tests
+```bash
+# By layer
+pytest tests/mispatch_finder/core      # Unit tests (fast)
+pytest tests/mispatch_finder/infra     # Integration tests (may require tokens)
+pytest tests/mispatch_finder/app       # E2E tests (most important)
+pytest tests/mispatch_finder/shared    # Utility tests
+
+# By marker
+pytest -m unit           # All unit tests
+pytest -m integration    # All integration tests  
+pytest -m e2e           # All E2E tests
+
+# All tests
+pytest tests/mispatch_finder
+```
+
+### Test Principles
+- **Isolation**: Extensive use of `monkeypatch` and `tmp_path` fixtures
+- **No External Calls**: Real APIs mocked in E2E, allowed in integration with skip conditions
+- **Clear Intent**: Each test focuses on one specific behavior
+- **Realistic Scenarios**: E2E tests mirror actual usage patterns
+- **Comprehensive Coverage**: All public APIs, error paths, and edge cases tested
 
 ---
 
-## Changes (since initial draft)
-- CLI migrated to Typer; console entry is `mispatch_finder.app.cli:app`.
-- Credentials required at CLI: `--provider`, `--model`, `--api-key` (or env), `--github-token` (or env).
-- Internal API updated: `AnalysisRequest.api_key` and `.github_token` are required (non-Optional); `run_analysis` requires them explicitly.
-- CLI `main()` wrapper removed; Typer app is invoked directly.
-- MCP security: main FastMCP uses `StaticTokenVerifier`, requiring `Authorization: Bearer <token>`.
-- MCP mounts: use dataclass `ServerMap` with optional `previous_repo`; prefixes use underscores (e.g., `/current_repo`).
-- Prompt: include unified diff of the patched commit; respects `MISPATCH_DIFF_MAX_CHARS` with middle truncation.
-- Repo prep: worktrees for previous/current; parent commit auto-derived when missing.
-- `show` command: now lists GHSA identifiers from `cve_collector.list_vulnerabilities` via `Vulnerability.ghsa_id` only.
-- OpenAI adapter: Responses API tools use dict-based `ToolParam` with `{"type":"mcp", ...}` and `tool_choice="auto"`.
-- Test suite implemented: pytest with unit/integration markers; only `itdev_llm_adapter` is mocked; tunnel is stubbed in integration; CLI tests use `CliRunner`.
+## Container & DI
 
-## Open Questions / Iteration Items
-- Fallback when localhost.run is unavailable
-- Results schema versioning
+### Container Configuration
+- **Singletons**: `VulnerabilityRepository`, `Repository`, `ResultStore`, `LogStore`, `Cache`
+- **Factories**: Use cases, `MCPServer`, `LLM`
+- **Configuration**: `providers.Configuration()` for centralized settings
 
+### Configuration Keys
+Internal config keys (in `container.config`):
+- `llm_provider_name`: LLM provider (e.g., "openai", "anthropic")
+- `llm_model_name`: Model identifier (e.g., "gpt-4", "claude-3-5-sonnet-20241022")
+- `llm_api_key`: API key for LLM service
+- `github_token`: GitHub token for vulnerability data
+- `cache_dir`: Base directory for caches
+- `results_dir`: Directory for analysis results
+- `logs_dir`: Directory for structured logs
+- `mcp_port`: Port for MCP aggregator (default: 18080)
+- `prompt_diff_max_chars`: Max chars for diff in prompt (default: 200000)
+- `list_limit`: Max GHSA IDs to list (default: 500)
 
----
+### Parameter Mapping
+CLI-friendly parameter names are mapped to config keys in `app/main.py`:
+- `provider` → `llm_provider_name`
+- `model` → `llm_model_name`
+- `api_key` → `llm_api_key`
 
-## Testing (implemented)
-### Layout
-- `tests/mispatch_finder/unit`: fast, isolated tests
-- `tests/mispatch_finder/integration`: end-to-end orchestration with minimal stubs
+This allows clean CLI usage while avoiding conflicts with `dependency-injector`'s reserved attributes.
 
-### Pytest configuration
-- `pytest.ini`:
-  - `pythonpath = src` for src-layout imports
-  - markers: `unit`, `integration`
+### Use Case Wiring Example
+```python
+# LLM adapter receives config from container
+llm = providers.Factory(
+    LLM,
+    provider=config.llm_provider_name,
+    model=config.llm_model_name,
+    api_key=config.llm_api_key,
+)
 
-### Shared fixtures
-- `tests/conftest.py`:
-  - Adds `src/` to `sys.path`
-  - Mocks `itdev_llm_adapter.factory.get_adapter` with a dummy adapter returning deterministic JSON
-  - Everything else (git, MCP server creation, repo scan) is real unless explicitly stubbed by a test
-
-### Unit tests (highlights)
-- Config: cache/results dirs, `MISPATCH_DIFF_MAX_CHARS` parsing
-- CVE helpers: `_normalize_repo_url`, `_choose_commit`
-- Prompts: includes GHSA/repo/commit/diff
-- Store: save/load/list summaries
-- Git repo: commit diff text, copy-based pre/post checkout
-- Mounts/Toolset: Node project detection and tool availability map
-- Analyzer: ephemeral MCP token generation per instance
-- LLM wrapper: returns JSON via mocked adapter
-
-### Integration tests (highlights)
-- `run_analysis` end-to-end using a local temporary git repo
-  - Stubs `fetch_ghsa_metadata` to point at the local repo
-  - Stubs tunnel to avoid `localhost.run` network
-  - Aggregator/MCP servers run locally (ensure port 18080 is free)
-- CLI `show` command using `CliRunner`
-  - Verifies identifier listing via `CVECollector`
-
-### Running
-- Unit only: `pytest -q -m unit`
-- Integration only: `pytest -q -m integration`
-- All tests: `pytest -q`
-
-### Mocking policy
-- Mandatory mock: `itdev_llm_adapter` adapter factory to prevent real OpenAI/Anthropic calls
-- Optional stubs in integration: tunnel (network), leave aggregator real by default
-
-
-
----
-
-## Implementation Notes (current)
-- Aggregator runs `transport="streamable-http"` on port 18080; URL is `http://127.0.0.1:18080`.
-- Tunnel parses public URL matching `https://*.lhr.life` from `ssh` stdout.
-- LLM call uses a single `Toolset` labeled `mispatch_tools` targeting `<public-url>/mcp` with bearer token.
-- Wiretap logging middleware logs full MCP request/response payloads. Non-JSON types are converted via `shared/to_jsonable.py`.
+# Use cases receive dependencies via DI
+run_analysis = providers.Factory(
+    RunAnalysisUseCase,
+    vuln_repo=vuln_repo,          # Singleton
+    repo=repo,                     # Singleton
+    mcp=mcp_server,                # Factory
+    llm=llm,                       # Factory
+    store=result_store,            # Singleton
+    token_gen=token_gen,           # Singleton
+    prompt_diff_max_chars=config.prompt_diff_max_chars.as_int(),
+)
+```
 
 ---
 
 ## Engineering Conventions & Logging
 
-### Code conventions
-- Imports: placed at the top of the module. No local imports inside functions.
-- Types: avoid `Any`, avoid `type: ignore`. Use explicit dataclasses and precise types.
-- No dynamic duck-typing helpers for core logic (no `getattr`/`hasattr` fallbacks). Prefer explicit attributes and narrow APIs.
-- Error handling: fail fast; no broad catch unless necessary. Never swallow exceptions silently. No blanket try/except; let exceptions bubble unless there is a clear recovery rationale (e.g., per-line JSON tolerance in log parsing).
-- Naming: descriptive variables; functions as verbs; consistent snake_case.
+### Code Conventions
+- **Imports**: Top of module, no local imports
+- **Types**: Avoid `Any`, avoid `type: ignore`. Explicit dataclasses and protocols
+- **No Duck Typing**: No `getattr`/`hasattr`/`cast` - use explicit attributes
+- **Error Handling**: Fail fast, minimal try/except. Let exceptions bubble unless clear recovery rationale
+- **Naming**: Descriptive variables, functions as verbs, snake_case
+- **DDD Structure**: Strict separation of app/core/infra/shared
 
-### LLM Adapter Interface
-- Standardized return type for hosted MCP adapters:
-  - `LLMResponse { text: str, usage?: TokenUsage }`
-  - `TokenUsage { input_tokens?: int, output_tokens?: int, total_tokens?: int }`
-- OpenAI adapter fills `usage` from SDK `response.usage`.
-- Anthropic adapter fills `usage` from `message.usage` and computes `total_tokens` when missing.
-- Internal wrapper `infra/llm.call_llm` returns plain text for the app layer and logs token usage payload when present.
+### Logging Policy
+- Standard library `logging` with structured JSON output
+- CLI configures file (`<cache>/logs/<GHSA>.jsonl`) + console handlers
+- Payload-wrapped entries: `{"level": "...", "logger": "...", "message": "...", "payload": {...}}`
+- MCP wiretap middleware logs all requests/responses
 
-### Logging policy
-- Standard library `logging` only. Library attaches a `NullHandler` by default to avoid unsolicited output.
-- CLI configures structured JSON logging:
-  - File: `<cache>/logs/<GHSA>.jsonl`
-  - Console: JSON to stdout when invoked via CLI
-  - Formatter: `shared/JSONFormatter` prints `{ level, logger, message, payload? }` only
-- Aggregator middleware:
-  - `infra/mcp/wiretap_logging.py` emits payload-wrapped entries:
-    - Request: `payload={"type":"request", "method": ctx.method, "message": to_jsonable(ctx.message)}`
-    - Response: `payload={"type":"response", "method": ctx.method, "result": to_jsonable(result)}`
-  - Combine with FastMCP `LoggingMiddleware(include_payloads=True)` if you need extra low-level traces.
-  - CLI also emits: `payload={"type":"log_file", "path": "<cache>/logs/<GHSA>.jsonl"}` at startup.
+### Run-time Logging Payloads
+- `ghsa_meta`: GHSA metadata fetched
+- `repos_prepared`: Workdir paths
+- `diff_built`: Diff length and truncation status
+- `mcp_ready`: Server URLs and mount status
+- `llm_input`: Prompt details
+- `llm_output`: Raw response
+- `llm_usage`: Token counts
+- `final_result`: Complete analysis result
 
-### Run-time logging payloads (Analyzer)
-- All app logs put their data under `payload` for consistency:
-  - `{"type":"ghsa_meta", ghsa, meta}`
-  - `{"type":"repos_prepared", workdirs}`
-  - `{"type":"diff_built", full_len, included_len, truncated}`
-  - `{"type":"aggregator_started", local_url, mounted}`
-  - `{"type":"tunnel_started", public_url}`
-  - `{"type":"llm_input", provider, model, prompt_len, prompt}`
-  - `{"type":"llm_output", raw_text_len, raw_text}`
-  - `{"type":"llm_usage", provider, model, input_tokens, output_tokens, total_tokens}`
-  - `{"type":"final_result", result}`
+---
 
-### File/Folder conventions
-- Log files are named by GHSA id only: `<ghsa>.jsonl` under `<cache>/logs/`.
-- MCP middleware lives under `infra/mcp/` and is wired in `aggregator.py`.
+## Changes (History)
 
+### Latest Refactoring (DDD Architecture + Consolidation + Comprehensive Testing)
+
+#### Recent Changes
+- **Configuration Naming (2025-01-11)**: Renamed config keys to avoid `dependency-injector` reserved attributes
+  - `provider` → `llm_provider_name`
+  - `model` → `llm_model_name`
+  - `api_key` → `llm_api_key`
+  - Added parameter mapping in `with_container` decorator for CLI compatibility
+- **Type Safety Enhancement**: Added `ParamSpec` and `Concatenate` to `with_container` decorator
+  - Preserves exact type signatures through decorator
+  - Enables IDE autocomplete and type checking for facade functions
+- **Logging Consolidation**: Moved LLM provider/model logging from UseCase to LLM adapter
+  - `LLMPort` no longer exposes implementation details
+  - All LLM metadata logged internally by adapter
+  - Log summary parses `llm_input`/`llm_output` messages for provider/model
+
+#### Architecture
+- **Ports Introduction**: Defined protocol interfaces for all external dependencies
+  - `VulnerabilityRepositoryPort`, `RepositoryPort`, `MCPServerPort`, `LLMPort`
+  - `ResultStorePort`, `LogStorePort`, `CachePort`, `TokenGeneratorPort`
+- **Use Cases**: Created dedicated use case classes for each CLI command
+  - `RunAnalysisUseCase`: Full analysis workflow
+  - `ListGHSAUseCase`: GHSA listing
+  - `ClearCacheUseCase`: Cache management
+  - `ShowLogUseCase`: Log display
+- **Adapters**: Implemented ports with all logic consolidated (no wrapper layers)
+  - `VulnerabilityRepository`: CVE collector integration, URL normalization, commit selection
+  - `Repository`: Git operations (clone, checkout, diff) - direct implementation
+  - `MCPServer`: Child servers + aggregator + tunnel - fully integrated
+  - `LLM`: itdev_llm_adapter + JSON extraction - complete implementation
+  - `ResultStore`: JSON save/load/list - direct file operations
+  - `LogStore`: Log parsing and formatting - direct implementation
+  - `Cache`: Directory cleanup - direct rmtree
+- **Container**: DI container with `dependency-injector`, factory and singleton patterns
+
+#### Testing (90+ tests)
+- **Test Restructure**: Migrated from `unit/integration` to DDD-aligned `app/core/infra/shared`
+- **Core Tests (17)**: Unit tests for all domain models, prompt building, and use cases
+  - Domain models: `RepoContext`, `AnalysisRequest`, `AnalysisResult`
+  - Prompt builder: All availability states, diff handling, JSON schema
+  - Use cases: Full execution flows with fake ports
+- **Infra Tests (28)**: Integration tests for all adapters
+  - VulnerabilityRepository: 10 tests (URL formats, commit selection, real API with skip)
+  - Repository, Store, Cache, LogStore, LLM: Comprehensive adapter testing
+- **App Tests (24)**: E2E tests for CLI and facade
+  - All CLI commands (`run`, `show`, `clear`, `log`) with options
+  - Error scenarios (missing tokens, invalid args)
+  - Full workflow with mocked external dependencies
+- **Shared Tests (21)**: Utility function coverage
+  - JSON serialization for all Python types
+  - Robust directory removal (readonly, symlinks)
+  - Structured logging validation
+
+#### Cleanup
+- **Deleted Legacy Files**: 
+  - Old wrapper adapters: `infra/adapters/cve_adapter.py`, `git_adapter.py`, etc.
+  - Legacy core: `core/analyze.py`, `app/prompts.py`, `core/toolset.py`
+  - Legacy infra: `infra/git_repo.py`, `infra/llm.py`, `infra/store.py`
+  - Legacy MCP: `infra/mcp/mounts.py`, `infra/mcp/aggregator.py`
+  - Legacy tests: `tests/mispatch_finder/unit/*`, `tests/mispatch_finder/integration/*`
+- **Public API**: Updated `__init__.py` to export facade functions
+  - `run_analysis`, `list_ghsa_ids`, `clear_all_caches`, `show_log`
+
+### Recent Changes (2025-01-12)
+
+#### Test Mock Refactoring
+- **Root Cause Fix**: E2E tests were failing due to mismatched mocks - `MockVulnerabilityRepository` returned fake commit SHAs, but real `Repository` adapter tried to find them in git repos
+- **Solution**: Added `MockRepository` to `tests/mispatch_finder/app/conftest.py` to mock git operations
+- **Container Override Strategy**: Monkeypatch `Container` class (not `with_container` decorator) to preserve parameter mapping logic
+- **Centralized Mocks**: Created reusable mock classes and fixtures in `conftest.py`:
+  - `MockVulnerabilityRepository`: Fake GHSA metadata
+  - `MockRepository`: Fake git operations  
+  - `MockLLM`: Canned JSON responses
+  - `MockMCPServer`: Mock MCP context
+  - `DummyTunnel`: No-op tunnel
+
+#### Test Coverage Improvements
+- **Unskipped Tests**: Fixed previously skipped integration tests
+  - `test_vulnerability_repository_fetch_metadata_real`: Now uses known-good GHSA ID `GHSA-93vw-8fm5-p2jf`
+  - `test_cli_log_with_ghsa_shows_details`: Uses `mock_container_for_show_log` fixture
+  - `test_cli_log_verbose_flag`: Tests verbose output with fixture
+- **Result**: 93 passed, 4 skipped (down from 6 skipped)
+
+### Earlier Changes
+- CLI migrated to Typer
+- MCP security with `StaticTokenVerifier`
+- Prompt includes unified diff with size cap
+- OpenAI Responses API integration
+- `cve_collector` new module API integration
+- Removed blanket try/except blocks
+
+---
+
+## Open Questions / Iteration Items
+- Fallback when localhost.run is unavailable
+- Results schema versioning
+- Additional vulnerability sources beyond npm ecosystem

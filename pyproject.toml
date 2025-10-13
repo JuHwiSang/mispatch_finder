@@ -8,6 +8,7 @@ dependencies = [
     "anthropic>=0.64.0",
     "asyncssh>=2.21.0",
     "cve-collector",
+    "dependency-injector>=4.48.2",
     "gitpython>=3.1.45",
     "openai>=1.102.0",
     "paramiko>=4.0.0",

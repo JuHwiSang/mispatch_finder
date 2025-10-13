@@ -1,28 +1,13 @@
-import os
 import sys
-import json
 from pathlib import Path
 import pytest
 from helpers import mark_by_dir
 
-from mispatch_finder.infra import llm
-from itdev_llm_adapter.types import LLMResponse, TokenUsage
-
-class DummyAdapter:
-    def __init__(self, provider: str, model: str, api_key: str):
-        self.provider = provider
-        self.model = model
-        self.api_key = api_key
-
-    def run(self, prompt: str, toolsets, *, max_output_tokens: int = 800, request_headers=None) -> LLMResponse:  # noqa: ANN001
-        # Return deterministic fake JSON-like text to simulate model output
-        payload = {
-            "patch_risk": "good",
-            "current_risk": "good",
-            "reason": "stubbed",
-            "poc": "echo stub"
-        }
-        return LLMResponse(text=json.dumps(payload), usage=TokenUsage(input_tokens=1, output_tokens=2, total_tokens=3))
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 
 @pytest.fixture(autouse=True)
@@ -35,20 +20,11 @@ def _ensure_src_on_syspath():
     yield
 
 
-@pytest.fixture(autouse=True)
-def mock_itdev_adapter(monkeypatch):
-    # Prevent real OpenAI/Anthropic calls by mocking factory.get_adapter
-
-    def fake_get_adapter(provider: str, model: str, api_key: str):
-        print('fake_get_adapter', provider, model, api_key)
-        return DummyAdapter(provider, model, api_key)
-
-    monkeypatch.setattr(llm, "get_adapter", fake_get_adapter)
-    yield
-
-
 TESTS = Path(__file__).parent
 
 def pytest_collection_modifyitems(config, items):
-    mark_by_dir(items, TESTS / "mispatch_finder" / "unit", pytest.mark.unit)
-    mark_by_dir(items, TESTS / "mispatch_finder" / "integration", pytest.mark.integration)
+    # Mark tests by directory structure
+    mark_by_dir(items, TESTS / "mispatch_finder" / "core", pytest.mark.unit)
+    mark_by_dir(items, TESTS / "mispatch_finder" / "infra", pytest.mark.integration)
+    mark_by_dir(items, TESTS / "mispatch_finder" / "app", pytest.mark.e2e)
+    mark_by_dir(items, TESTS / "mispatch_finder" / "shared", pytest.mark.unit)

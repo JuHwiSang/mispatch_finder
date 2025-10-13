@@ -54,8 +54,13 @@ def parse_log_details(fp: Path) -> LogDetails:
         msg = obj.get("message")
         payload = obj.get("payload") or {}
 
-        # model (early)
+        # model (early from run_started or llm_input)
         if msg == "run_started":
+            m = payload.get("model")
+            if isinstance(m, str):
+                details.model = details.model or m
+        
+        if msg == "llm_input":
             m = payload.get("model")
             if isinstance(m, str):
                 details.model = details.model or m
@@ -161,6 +166,10 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
         if typ == "run_started" and not run_date:
             # No timestamp in formatter; we will use file mtime as proxy later
             run_date = ""
+            if not model:
+                model = payload.get("model") or model
+        
+        if typ == "llm_input":
             if not model:
                 model = payload.get("model") or model
 
