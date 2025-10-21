@@ -10,10 +10,11 @@ import re
 
 import typer
 
-from .main import run_analysis, list_ghsa_ids, clear_all_caches, show_log
+from .main import run_analysis, list_ghsa_ids, list_ghsa_with_metadata, clear_all_caches, show_log
 from .config import get_model_api_key, get_logs_dir
 from ..shared.json_logging import build_json_console_handler, build_json_file_handler
 from ..shared.log_summary import summarize_logs
+from cve_collector import detail
 
 try:
     from dotenv import load_dotenv
@@ -117,43 +118,62 @@ def all(
     logs_dir = get_logs_dir()
     summaries = summarize_logs(logs_dir, verbose=False)
 
-    # Choose IDs to run
-    to_run: list[str] = []
+    # Filter out already completed IDs
+    candidates = []
     for ghsa in items:
         s = summaries.get(ghsa)
-        if s is not None and s.done:
-            continue
-        to_run.append(ghsa)
-        if limit is not None and len(to_run) >= limit:
-            break
-
-    if not to_run:
+        if s is None or not s.done:
+            candidates.append(ghsa)
+    
+    if not candidates:
         typer.echo("No pending GHSA IDs to run.")
         return
-
-    # Run each analysis in a fresh subprocess to ensure clean state per run
-    # (Original in-process call retained for reference)
-    # for idx, ghsa in enumerate(to_run, start=1):
-    #     typer.echo(f"[{idx}/{len(to_run)}] Running {ghsa} (provider={provider}, model={model})...")
-    #     run(
-    #         ghsa=ghsa,
-    #         provider=provider,
-    #         model=model,
-    #         log_level="INFO",
-    #         force_reclone=False,
-    #     )
+    
+    typer.echo(f"Found {len(candidates)} pending GHSA IDs. Starting validation and batch analysis...")
+    if limit:
+        typer.echo(f"Target: {limit} successful runs")
 
     src_dir = Path(__file__).resolve().parents[2]
-    for idx, ghsa in enumerate(to_run, start=1):
+    
+    processed = 0
+    skipped = 0
+    
+    for candidate_idx, ghsa in enumerate(candidates, start=1):
+        # Check if we've reached the limit
+        if limit and processed >= limit:
+            break
+        
+        # Lazy validation: check metadata only when needed
+        typer.echo(f"[{candidate_idx}/{len(candidates)}] Validating {ghsa}...", nl=False)
+        vuln = detail(ghsa)
+        
+        if vuln is None:
+            typer.echo(f" ⊘ Skip (metadata not found)")
+            skipped += 1
+            continue
+        
+        if not vuln.repositories or len(vuln.repositories) == 0:
+            typer.echo(f" ⊘ Skip (no repository)")
+            skipped += 1
+            continue
+        
+        if not vuln.commits or len(vuln.commits) == 0:
+            typer.echo(f" ⊘ Skip (no commits)")
+            skipped += 1
+            continue
+        
+        # Valid metadata - run analysis
+        typer.echo(f" ✓ Valid, running...")
+        
         # Status line with optional provider/model context
-        parts = [f"[{idx}/{len(to_run)}] Running {ghsa}"]
+        parts = [f"  Running {ghsa}"]
         if provider:
             parts.append(f"provider={provider}")
         if model:
             parts.append(f"model={model}")
-        typer.echo(" " .join(parts) + " via subprocess...")
+        typer.echo(" ".join(parts))
 
-        # Build subprocess command; only pass flags that were provided
+        # Build subprocess command
         cmd = [
             sys.executable,
             "-m",
@@ -165,10 +185,26 @@ def all(
             cmd.extend(["--provider", provider])
         if model:
             cmd.extend(["--model", model])
-        result = subprocess.run(cmd, cwd=str(src_dir))
+        
+        # Suppress stdout, keep stderr for errors
+        result = subprocess.run(
+            cmd, 
+            cwd=str(src_dir),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
         if result.returncode != 0:
-            typer.echo(f"Subprocess failed for {ghsa} with exit code {result.returncode}", err=True)
+            typer.echo(f"  ✗ Failed with exit code {result.returncode}", err=True)
+            if result.stderr:
+                typer.echo(result.stderr, err=True)
             raise typer.Exit(code=1)
+        else:
+            typer.echo(f"  ✓ Completed")
+            processed += 1
+    
+    typer.echo(f"\nBatch analysis complete: {processed} processed, {skipped} skipped.")
 
 
 if __name__ == "__main__":

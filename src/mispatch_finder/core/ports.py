@@ -12,17 +12,22 @@ class GHSAMeta:
     repo_url: str
     commit: str
     parent_commit: Optional[str]
+    repo_size_kb: Optional[int] = None  # Repository size in KB, if available
 
 
 class VulnerabilityRepositoryPort(Protocol):
-    """Port for fetching vulnerability metadata and listing GHSA IDs."""
+    """Port for fetching vulnerability metadata and listing vulnerabilities."""
     
     def fetch_metadata(self, ghsa: str) -> GHSAMeta:
-        """Fetch detailed metadata for a GHSA."""
+        """Fetch detailed metadata for a specific GHSA."""
         ...
 
     def list_ids(self, limit: int) -> list[str]:
-        """List available GHSA identifiers."""
+        """List available GHSA identifiers (ID only, no metadata)."""
+        ...
+    
+    def list_with_metadata(self, limit: int) -> list[GHSAMeta]:
+        """List vulnerabilities with full metadata (more efficient than fetching individually)."""
         ...
 
     def clear_cache(self) -> None:

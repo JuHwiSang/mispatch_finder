@@ -99,6 +99,13 @@ def list_ghsa_ids(container: Container, **kwargs) -> list[str]:
 
 
 @with_container
+def list_ghsa_with_metadata(container: Container, limit: int = 500, **kwargs) -> list:
+    """List GHSA IDs with full metadata (repos, commits, size)."""
+    vuln_repo = container.vuln_repo()
+    return vuln_repo.list_with_metadata(limit=limit)
+
+
+@with_container
 def clear_all_caches(container: Container, **kwargs) -> None:
     """Clear all caches."""
     uc = container.clear_cache_uc()
