@@ -11,7 +11,7 @@ import re
 import typer
 
 from .main import run_analysis, list_ghsa_ids, list_ghsa_with_metadata, clear_all_caches, logs as logs_main
-from .config import get_model_api_key, get_logs_dir
+from .config import get_model_api_key, get_logs_dir, get_github_token
 from ..infra.logging import build_json_console_handler, build_json_file_handler
 from ..shared.log_summary import summarize_logs
 from cve_collector import detail
@@ -63,7 +63,6 @@ def analyze(
         typer.echo("API key required via MODEL_API_KEY (or OPENAI_API_KEY/ANTHROPIC_API_KEY)", err=True)
         raise typer.Exit(code=2)
 
-    from .config import get_github_token
     github_token = get_github_token()
     if not github_token:
         typer.echo("GitHub token required via GITHUB_TOKEN", err=True)
