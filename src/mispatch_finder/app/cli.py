@@ -87,7 +87,7 @@ def list_command():
 
 
 
-@app.command()
+@app.command(name="clear")
 def clear_command():
     """Clear local caches and CVE collector state."""
     typer.echo("Clearing caches...")
