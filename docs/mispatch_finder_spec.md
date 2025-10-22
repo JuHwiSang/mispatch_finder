@@ -45,10 +45,10 @@ src/mispatch_finder/
       models.py                 # Domain models (AnalysisRequest, AnalysisResult, RepoContext)
       prompt.py                 # Prompt building logic
     usecases/
-      run_analysis.py           # RunAnalysisUseCase
-      list_ghsa.py              # ListGHSAUseCase
+      analyze.py                # AnalyzeUseCase
+      list.py                   # ListUseCase
       clear_cache.py            # ClearCacheUseCase
-      show_log.py               # ShowLogUseCase
+      logs.py                   # LogsUseCase
     ports.py                    # Port protocols (interfaces)
 
   infra/                        # Infrastructure Layer
@@ -242,8 +242,8 @@ Behavior:
 - Clears all `cve_collector` caches (OSV data + GitHub metadata)
 - Future: Add `--prefix` option to selectively clear OSV or GitHub caches
 
-### `mispatch_finder log [GHSA-xxxx-xxxx-xxxx]`
-**Use Case**: `ShowLogUseCase`
+### `mispatch_finder logs [GHSA-xxxx-xxxx-xxxx]`
+**Use Case**: `LogsUseCase`
 
 Options:
 - `--verbose`/`-v`
@@ -301,7 +301,7 @@ tests/
 - **core (17 tests)**: Fast unit tests with fake port implementations
   - Domain models (`RepoContext`, `AnalysisRequest`, `AnalysisResult`)
   - Prompt building with all edge cases
-  - Use case execution (`RunAnalysis`, `ListGHSA`, `ClearCache`, `ShowLog`)
+  - Use case execution (`Analyze`, `List`, `ClearCache`, `Logs`)
   
 - **infra (28 tests)**: Integration tests with real dependencies
   - VulnerabilityRepository: URL normalization, commit selection, GHSA fetching
@@ -311,8 +311,8 @@ tests/
   - LLM: JSON extraction, toolset handling
   
 - **app (24 tests)**: E2E tests with mocked external services
-  - CLI commands: `run`, `show`, `clear`, `log` with all options
-  - Facade functions: `run_analysis`, `list_ghsa_ids`, `clear_all_caches`, `show_log`
+  - CLI commands: `analyze`, `list`, `clear`, `logs` with all options
+  - Facade functions: `run_analysis`, `list_ghsa_ids`, `clear_all_caches`, `logs`
   - Error handling: missing tokens, invalid args
   - Full workflow integration
   
@@ -324,7 +324,7 @@ tests/
 
 ### Key Test Files
 - `tests/mispatch_finder/core/test_usecases.py`: Use case execution with fake ports
-- `tests/mispatch_finder/core/test_usecases_show_log.py`: ShowLog use case scenarios
+- `tests/mispatch_finder/core/test_usecases_logs.py`: Logs use case scenarios
 - `tests/mispatch_finder/core/test_domain_models.py`: All domain model creation and defaults
 - `tests/mispatch_finder/core/test_domain_prompt.py`: Prompt building with all states
 - `tests/mispatch_finder/infra/test_vulnerability_repository.py`: CVE collector integration
@@ -472,10 +472,10 @@ run_analysis = providers.Factory(
   - `VulnerabilityRepositoryPort`, `RepositoryPort`, `MCPServerPort`, `LLMPort`
   - `ResultStorePort`, `LogStorePort`, `CachePort`, `TokenGeneratorPort`
 - **Use Cases**: Created dedicated use case classes for each CLI command
-  - `RunAnalysisUseCase`: Full analysis workflow
-  - `ListGHSAUseCase`: GHSA listing
+  - `AnalyzeUseCase`: Full analysis workflow
+  - `ListUseCase`: GHSA listing
   - `ClearCacheUseCase`: Cache management
-  - `ShowLogUseCase`: Log display
+  - `LogsUseCase`: Log display
 - **Adapters**: Implemented ports with all logic consolidated (no wrapper layers)
   - `VulnerabilityRepository`: CVE collector integration, URL normalization, commit selection
   - `Repository`: Git operations (clone, checkout, diff) - direct implementation
@@ -512,7 +512,7 @@ run_analysis = providers.Factory(
   - Legacy MCP: `infra/mcp/mounts.py`, `infra/mcp/aggregator.py`
   - Legacy tests: `tests/mispatch_finder/unit/*`, `tests/mispatch_finder/integration/*`
 - **Public API**: Updated `__init__.py` to export facade functions
-  - `run_analysis`, `list_ghsa_ids`, `clear_all_caches`, `show_log`
+  - `run_analysis`, `list_ghsa_ids`, `clear_all_caches`, `logs`
 
 ### Recent Changes (2025-01-12)
 
@@ -530,8 +530,8 @@ run_analysis = providers.Factory(
 #### Test Coverage Improvements
 - **Unskipped Tests**: Fixed previously skipped integration tests
   - `test_vulnerability_repository_fetch_metadata_real`: Now uses known-good GHSA ID `GHSA-93vw-8fm5-p2jf`
-  - `test_cli_log_with_ghsa_shows_details`: Uses `mock_container_for_show_log` fixture
-  - `test_cli_log_verbose_flag`: Tests verbose output with fixture
+  - `test_cli_logs_with_ghsa_shows_details`: Uses `mock_container_for_logs` fixture
+  - `test_cli_logs_verbose_flag`: Tests verbose output with fixture
 - **Result**: 93 passed, 4 skipped (down from 6 skipped)
 
 ### Earlier Changes

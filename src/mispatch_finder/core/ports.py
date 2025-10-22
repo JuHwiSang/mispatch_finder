@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from pathlib import Path
-from typing import Protocol, Optional
+from typing import Protocol, Optional, Dict, Any
 from dataclasses import dataclass
 
 from .domain.models import Vulnerability
@@ -143,6 +143,29 @@ class CachePort(Protocol):
 
 class TokenGeneratorPort(Protocol):
     def generate(self) -> str:
+        ...
+
+
+class LoggerPort(Protocol):
+    """Port for structured logging.
+
+    Provides structured logging with optional payload data.
+    Implementations should handle JSON serialization and formatting.
+    """
+
+    def debug(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
+        ...
+
+    def info(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
+        ...
+
+    def warning(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
+        ...
+
+    def error(self, message: str, payload: Optional[Dict[str, Any]] = None, exc_info: bool = False) -> None:
+        ...
+
+    def exception(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
         ...
 
 

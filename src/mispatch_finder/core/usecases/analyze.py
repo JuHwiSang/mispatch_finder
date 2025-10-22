@@ -6,8 +6,8 @@ from ..ports import ResultStorePort
 from ..services import AnalysisOrchestrator
 
 
-class RunAnalysisUseCase:
-    """Use case for running vulnerability analysis.
+class AnalyzeUseCase:
+    """Use case for analyzing vulnerability.
 
     Thin orchestration layer that delegates to AnalysisOrchestrator
     and persists results.

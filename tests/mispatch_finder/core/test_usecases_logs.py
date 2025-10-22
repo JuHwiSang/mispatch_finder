@@ -1,7 +1,7 @@
 import pytest
 from typing import Optional
 
-from mispatch_finder.core.usecases.show_log import ShowLogUseCase
+from mispatch_finder.core.usecases.logs import LogsUseCase
 
 
 class FakeLogStore:
@@ -33,9 +33,9 @@ class FakeLogStore:
         ]
 
 
-def test_show_log_with_ghsa_verbose():
+def test_logs_with_ghsa_verbose():
     store = FakeLogStore()
-    uc = ShowLogUseCase(log_store=store)
+    uc = LogsUseCase(log_store=store)
 
     result = uc.execute(ghsa="GHSA-TEST", verbose=True)
 
@@ -44,9 +44,9 @@ def test_show_log_with_ghsa_verbose():
     assert "GHSA-TEST" in result[0]
 
 
-def test_show_log_with_ghsa_non_verbose():
+def test_logs_with_ghsa_non_verbose():
     store = FakeLogStore()
-    uc = ShowLogUseCase(log_store=store)
+    uc = LogsUseCase(log_store=store)
 
     result = uc.execute(ghsa="GHSA-TEST", verbose=False)
 
@@ -55,9 +55,9 @@ def test_show_log_with_ghsa_non_verbose():
     assert "GHSA-TEST" in result[0]
 
 
-def test_show_log_without_ghsa_verbose():
+def test_logs_without_ghsa_verbose():
     store = FakeLogStore()
-    uc = ShowLogUseCase(log_store=store)
+    uc = LogsUseCase(log_store=store)
 
     result = uc.execute(ghsa=None, verbose=True)
 
@@ -66,13 +66,12 @@ def test_show_log_without_ghsa_verbose():
     assert "MCP: 10 calls" in result[0]
 
 
-def test_show_log_without_ghsa_non_verbose():
+def test_logs_without_ghsa_non_verbose():
     store = FakeLogStore()
-    uc = ShowLogUseCase(log_store=store)
+    uc = LogsUseCase(log_store=store)
 
     result = uc.execute(ghsa=None, verbose=False)
 
     assert store.summarize_calls == [False]
     assert len(result) == 2
     assert "GHSA-1111" in result[0]
-

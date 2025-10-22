@@ -238,14 +238,14 @@ def mock_container_for_clear_cache(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def mock_container_for_show_log(tmp_path, monkeypatch):
-    """Fixture for show_log tests."""
+def mock_container_for_logs(tmp_path, monkeypatch):
+    """Fixture for logs tests."""
     def mocked_container_class():
         container = Container()
         config = main._get_default_config()
         config.update({"logs_dir": tmp_path / "logs"})
         container.config.from_dict(config)
         return container
-    
+
     monkeypatch.setattr("mispatch_finder.app.main.Container", mocked_container_class)
 

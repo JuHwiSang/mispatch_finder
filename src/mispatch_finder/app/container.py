@@ -3,10 +3,10 @@ from __future__ import annotations
 from dependency_injector import containers, providers
 
 from ..core.ports import DefaultTokenGenerator
-from ..core.usecases.run_analysis import RunAnalysisUseCase
-from ..core.usecases.list_ghsa import ListGHSAUseCase
+from ..core.usecases.analyze import AnalyzeUseCase
+from ..core.usecases.list import ListUseCase
 from ..core.usecases.clear_cache import ClearCacheUseCase
-from ..core.usecases.show_log import ShowLogUseCase
+from ..core.usecases.logs import LogsUseCase
 from ..core.services import DiffService, JsonExtractor, AnalysisOrchestrator
 from ..infra.vulnerability_repository import VulnerabilityRepository
 from ..infra.repository import Repository
@@ -88,14 +88,14 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Use cases
-    run_analysis = providers.Factory(
-        RunAnalysisUseCase,
+    analyze_uc = providers.Factory(
+        AnalyzeUseCase,
         orchestrator=analysis_orchestrator,
         store=result_store,
     )
 
-    list_ghsa = providers.Factory(
-        ListGHSAUseCase,
+    list_uc = providers.Factory(
+        ListUseCase,
         vuln_repo=vuln_repo,
         limit=config.list_limit.as_int(),
         ecosystem=config.ecosystem,
@@ -107,7 +107,7 @@ class Container(containers.DeclarativeContainer):
         vuln_repo=vuln_repo,
     )
 
-    show_log = providers.Factory(
-        ShowLogUseCase,
+    logs_uc = providers.Factory(
+        LogsUseCase,
         log_store=log_store,
     )

@@ -13,7 +13,7 @@ from mispatch_finder.core.ports import (
     MCPServerContext,
 )
 from mispatch_finder.core.domain.models import Vulnerability, Repository
-from mispatch_finder.infra.logging import AnalysisLogger
+from mispatch_finder.core.ports import LoggerPort
 
 
 class FakeRepo:
@@ -155,6 +155,24 @@ class FakeTokenGen:
         return "fake-token-xyz"
 
 
+class FakeLogger:
+    """Fake logger for testing."""
+    def debug(self, message: str, payload=None) -> None:
+        pass
+
+    def info(self, message: str, payload=None) -> None:
+        pass
+
+    def warning(self, message: str, payload=None) -> None:
+        pass
+
+    def error(self, message: str, payload=None, exc_info: bool = False) -> None:
+        pass
+
+    def exception(self, message: str, payload=None) -> None:
+        pass
+
+
 class TestAnalysisOrchestrator:
     """Tests for AnalysisOrchestrator."""
 
@@ -165,7 +183,7 @@ class TestAnalysisOrchestrator:
         mcp = FakeMCP()
         llm = FakeLLM()
         token_gen = FakeTokenGen()
-        logger = AnalysisLogger()
+        logger = FakeLogger()
         diff_service = DiffService(repo=repo, max_chars=1000)
         json_extractor = JsonExtractor()
 
@@ -197,7 +215,7 @@ class TestAnalysisOrchestrator:
         mcp = FakeMCP()
         llm = ErrorLLM()
         token_gen = FakeTokenGen()
-        logger = AnalysisLogger()
+        logger = FakeLogger()
         diff_service = DiffService(repo=repo, max_chars=1000)
         json_extractor = JsonExtractor()
 

@@ -12,8 +12,8 @@ from mispatch_finder.core.ports import (
     MCPServerContext,
 )
 from mispatch_finder.core.domain.models import Vulnerability, Repository
-from mispatch_finder.core.usecases.run_analysis import RunAnalysisUseCase
-from mispatch_finder.core.usecases.list_ghsa import ListGHSAUseCase
+from mispatch_finder.core.usecases.analyze import AnalyzeUseCase
+from mispatch_finder.core.usecases.list import ListUseCase
 from mispatch_finder.core.usecases.clear_cache import ClearCacheUseCase
 
 
@@ -103,9 +103,26 @@ class FakeTokenGen:
         return "fake-token-12345"
 
 
+class FakeLogger:
+    """Fake logger for testing."""
+    def debug(self, message: str, payload=None) -> None:
+        pass
+
+    def info(self, message: str, payload=None) -> None:
+        pass
+
+    def warning(self, message: str, payload=None) -> None:
+        pass
+
+    def error(self, message: str, payload=None, exc_info: bool = False) -> None:
+        pass
+
+    def exception(self, message: str, payload=None) -> None:
+        pass
+
+
 def test_run_analysis_usecase_executes_full_flow():
-    """Test that RunAnalysisUseCase delegates to orchestrator and stores result."""
-    from mispatch_finder.infra.logging import AnalysisLogger
+    """Test that AnalyzeUseCase delegates to orchestrator and stores result."""
     from mispatch_finder.core.services import AnalysisOrchestrator, DiffService, JsonExtractor
 
     vuln_repo = FakeVulnRepo()
@@ -114,7 +131,7 @@ def test_run_analysis_usecase_executes_full_flow():
     llm = FakeLLM()
     store = FakeStore()
     token_gen = FakeTokenGen()
-    logger = AnalysisLogger()
+    logger = FakeLogger()
 
     # Create services
     diff_service = DiffService(repo=repo, max_chars=100000)
@@ -133,7 +150,7 @@ def test_run_analysis_usecase_executes_full_flow():
     )
 
     # Create use case (now much simpler)
-    uc = RunAnalysisUseCase(
+    uc = AnalyzeUseCase(
         orchestrator=orchestrator,
         store=store,
     )
@@ -149,7 +166,7 @@ def test_run_analysis_usecase_executes_full_flow():
 
 def test_list_ghsa_usecase():
     vuln_repo = FakeVulnRepo()
-    uc = ListGHSAUseCase(vuln_repo=vuln_repo, limit=500, ecosystem="npm")
+    uc = ListUseCase(vuln_repo=vuln_repo, limit=500, ecosystem="npm")
 
     result = uc.execute()
 
@@ -159,7 +176,7 @@ def test_list_ghsa_usecase():
 
 def test_list_ghsa_usecase_custom_ecosystem():
     vuln_repo = FakeVulnRepo()
-    uc = ListGHSAUseCase(vuln_repo=vuln_repo, limit=100, ecosystem="pypi")
+    uc = ListUseCase(vuln_repo=vuln_repo, limit=100, ecosystem="pypi")
 
     result = uc.execute()
 

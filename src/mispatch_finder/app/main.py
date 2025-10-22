@@ -89,14 +89,14 @@ def run_analysis(
     github_token: str | None = None,
 ) -> Dict[str, object]:
     """Run analysis via use case."""
-    uc = container.run_analysis()
+    uc = container.analyze_uc()
     return uc.execute(ghsa=ghsa, force_reclone=force_reclone)
 
 
 @with_container
 def list_ghsa_ids(container: Container, **kwargs) -> list[str]:
     """List available GHSA IDs."""
-    uc = container.list_ghsa()
+    uc = container.list_uc()
     return uc.execute()
 
 
@@ -122,7 +122,7 @@ def clear_all_caches(container: Container, **kwargs) -> None:
 
 
 @with_container
-def show_log(container: Container, ghsa: str | None, verbose: bool, **kwargs) -> list[str]:
+def logs(container: Container, ghsa: str | None, verbose: bool, **kwargs) -> list[str]:
     """Show log summary or details for a specific GHSA."""
-    uc = container.show_log()
+    uc = container.logs_uc()
     return uc.execute(ghsa, verbose)

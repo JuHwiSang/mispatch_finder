@@ -1,7 +1,7 @@
 """Facade function tests for main module."""
 from pathlib import Path
 
-from mispatch_finder.app.main import run_analysis, list_ghsa_ids, clear_all_caches, show_log
+from mispatch_finder.app.main import run_analysis, list_ghsa_ids, clear_all_caches, logs
 
 
 def test_run_analysis_with_optional_params(mock_container_for_run_analysis):
@@ -35,31 +35,31 @@ def test_clear_all_caches_executes(tmp_path, mock_container_for_clear_cache):
     clear_all_caches()
 
 
-def test_show_log_with_ghsa(tmp_path, mock_container_for_show_log):
-    """Test that show_log returns log details for a GHSA."""
+def test_logs_with_ghsa(tmp_path, mock_container_for_logs):
+    """Test that logs returns log details for a GHSA."""
     logs_dir = tmp_path / "logs"
     logs_dir.mkdir()
-    
+
     log_file = logs_dir / "GHSA-TEST.jsonl"
     log_file.write_text(
         '{"message":"run_started","ghsa":"GHSA-TEST"}\n'
         '{"message":"final_result","payload":{"type":"final_result","result":{"ghsa":"GHSA-TEST"}}}\n',
         encoding="utf-8"
     )
-    
-    result = show_log("GHSA-TEST", verbose=False)
-    
+
+    result = logs("GHSA-TEST", verbose=False)
+
     assert isinstance(result, list)
     assert len(result) > 0
 
 
-def test_show_log_without_ghsa(tmp_path, mock_container_for_show_log):
-    """Test that show_log returns summary table when no GHSA provided."""
+def test_logs_without_ghsa(tmp_path, mock_container_for_logs):
+    """Test that logs returns summary table when no GHSA provided."""
     logs_dir = tmp_path / "logs"
     logs_dir.mkdir()
-    
-    result = show_log(None, verbose=False)
-    
+
+    result = logs(None, verbose=False)
+
     assert isinstance(result, list)
 
 

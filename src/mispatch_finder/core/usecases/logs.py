@@ -5,7 +5,7 @@ from typing import Optional
 from ..ports import LogStorePort
 
 
-class ShowLogUseCase:
+class LogsUseCase:
     def __init__(self, *, log_store: LogStorePort) -> None:
         self._log_store = log_store
 

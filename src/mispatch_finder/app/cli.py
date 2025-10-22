@@ -10,7 +10,7 @@ import re
 
 import typer
 
-from .main import run_analysis, list_ghsa_ids, list_ghsa_with_metadata, clear_all_caches, show_log
+from .main import run_analysis, list_ghsa_ids, list_ghsa_with_metadata, clear_all_caches, logs as logs_main
 from .config import get_model_api_key, get_logs_dir
 from ..infra.logging import build_json_console_handler, build_json_file_handler
 from ..shared.log_summary import summarize_logs
@@ -102,7 +102,7 @@ def logs(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed MCP call counts per tool."),
 ):
     """Show analysis logs - either for a specific GHSA or summary of all runs."""
-    lines = show_log(ghsa, verbose)
+    lines = logs_main(ghsa, verbose)
     for line in lines:
         typer.echo(line)
 

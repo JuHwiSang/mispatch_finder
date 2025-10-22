@@ -11,10 +11,10 @@ from ..ports import (
     MCPServerPort,
     LLMPort,
     TokenGeneratorPort,
+    LoggerPort,
 )
 from .diff_service import DiffService
 from .json_extractor import JsonExtractor
-from ...infra.logging import AnalysisLogger
 
 
 class AnalysisOrchestrator:
@@ -32,7 +32,7 @@ class AnalysisOrchestrator:
         mcp: MCPServerPort,
         llm: LLMPort,
         token_gen: TokenGeneratorPort,
-        logger: AnalysisLogger,
+        logger: LoggerPort,
         diff_service: DiffService,
         json_extractor: JsonExtractor,
     ) -> None:
