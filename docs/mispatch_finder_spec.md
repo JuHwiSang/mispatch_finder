@@ -17,7 +17,9 @@ Detect whether historical GHSA patches were correct or potentially left residual
 ---
 
 ## High-Level Flow
-1) Fetch GHSA metadata using `cve_collector` (repo URL, patch commit).
+1) Fetch GHSA metadata using `cve_collector.detail(id)` API:
+   - Returns enriched `Vulnerability` model with repository metadata, commits, severity, etc.
+   - Automatically pulls data from OSV and enriches with GitHub repository info (stars, size)
 2) Prepare two cached working directories (copy-based):
    - current: repository's present state (current HEAD)
    - previous: checkout parent of the patched commit (if none, mark previous as unavailable)
@@ -98,9 +100,65 @@ infra/* (low-level implementations)
 ## Ports (Protocols)
 
 ### VulnerabilityRepositoryPort
-- `fetch_metadata(ghsa: str) -> GHSAMeta`
-- `list_ids(limit: int) -> list[str]`
-- `clear_cache() -> None`
+Wraps `cve_collector` library (v0.5.0+), converting external models to domain models.
+
+**Domain Model Conversion:**
+The adapter translates between external `cve_collector` models and internal domain models, keeping core independent from external libraries (DDD principle).
+
+**Domain Models:**
+```python
+@dataclass(frozen=True)
+class Repository:
+    owner: str
+    name: str
+    ecosystem: Optional[str] = None
+    star_count: Optional[int] = None
+    size_kb: Optional[int] = None
+
+    @property
+    def slug(self) -> str  # "owner/name"
+    @property
+    def url(self) -> str   # "https://github.com/owner/name"
+
+@dataclass(frozen=True)
+class Vulnerability:
+    ghsa_id: str
+    repository: Repository
+    commit_hash: str
+    cve_id: Optional[str] = None
+    summary: Optional[str] = None
+    severity: Optional[str] = None  # "CRITICAL", "HIGH", etc.
+```
+
+**Methods:**
+- `fetch_metadata(ghsa: str) -> Vulnerability`
+  - Uses `cve_collector.detail(id)` to fetch enriched vulnerability data
+  - Converts external model to domain `Vulnerability` with nested `Repository`
+  - Extracts: repository (owner/name), commit hash, CVE ID, severity, summary
+  - Converts repo size from bytes to KB
+  - Selects most complete commit hash from candidates
+
+- `list_ids(limit: int, ecosystem: str = "npm") -> list[str]`
+  - Uses `cve_collector.list_vulnerabilities(ecosystem, limit, detailed=False)`
+  - Returns only GHSA IDs (no metadata) for efficient listing
+  - Validates GHSA format: `GHSA-xxxx-xxxx-xxxx`
+
+- `list_with_metadata(limit: int, ecosystem: str = "npm") -> list[Vulnerability]`
+  - Uses `cve_collector.list_vulnerabilities(ecosystem, limit, detailed=True)`
+  - More efficient than calling `fetch_metadata()` individually
+  - Returns domain `Vulnerability` objects in batched operation
+
+- `clear_cache(prefix: str | None = None) -> None`
+  - Uses `cve_collector.clear_cache(prefix)`
+  - `prefix=None`: clear all caches
+  - `prefix="osv"`: clear only OSV vulnerability data
+  - `prefix="gh_repo"`: clear only GitHub repository metadata
+
+**cve_collector Integration:**
+- Data sources: OSV (GHSA data) + GitHub API (repository enrichment)
+- Caching: Disk-based with TTL, prefix-based key structure (`osv:`, `gh_repo:`)
+- Authentication: Requires `GITHUB_TOKEN` environment variable
+- Supported ecosystems: npm, pypi, Maven, Go, etc.
 
 ### RepositoryPort
 - `prepare_workdirs(...) -> (current, previous)`
@@ -130,9 +188,18 @@ infra/* (low-level implementations)
 ---
 
 ## Configuration
-- Diff size cap: `MISPATCH_DIFF_MAX_CHARS` (default: 200_000)
+
+### Environment Variables
+- `GITHUB_TOKEN`: Required for `cve_collector` API access
+- `MODEL_API_KEY`: Unified LLM API key (fallbacks: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
+- `MISPATCH_HOME`: Application home directory (default: platformdirs cache)
+- `MISPATCH_DIFF_MAX_CHARS`: Diff size cap (default: 200_000)
   - Middle-truncation when exceeded
-- Cache base: `platformdirs.user_cache_dir("mispatch-finder")`
+- `MISPATCH_ECOSYSTEM`: Target vulnerability ecosystem (default: npm)
+  - Options: npm, pypi, Maven, Go, etc.
+
+### Directory Structure
+- Cache base: `platformdirs.user_cache_dir("mispatch_finder")` or `$MISPATCH_HOME`
   - `cache/`: git repos, worktrees
   - `results/`: analysis JSON outputs
   - `logs/`: structured JSONL logs
@@ -158,12 +225,22 @@ Behavior:
 ### `mispatch_finder show`
 **Use Case**: `ListGHSAUseCase`
 
-Lists available GHSA identifiers from `cve_collector` (npm ecosystem, limit 500).
+Lists available GHSA identifiers from `cve_collector`.
+
+Behavior:
+- Uses configured ecosystem (`MISPATCH_ECOSYSTEM` env var, default: npm)
+- Limit: 500 (configurable in container)
+- Returns GHSA IDs only (no metadata)
 
 ### `mispatch_finder clear`
 **Use Case**: `ClearCacheUseCase`
 
 Clears application cache and `cve_collector` cache.
+
+Behavior:
+- Clears all local caches (git repos, results, logs)
+- Clears all `cve_collector` caches (OSV data + GitHub metadata)
+- Future: Add `--prefix` option to selectively clear OSV or GitHub caches
 
 ### `mispatch_finder log [GHSA-xxxx-xxxx-xxxx]`
 **Use Case**: `ShowLogUseCase`

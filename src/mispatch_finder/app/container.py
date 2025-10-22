@@ -77,6 +77,7 @@ class Container(containers.DeclarativeContainer):
         ListGHSAUseCase,
         vuln_repo=vuln_repo,
         limit=config.list_limit.as_int(),
+        ecosystem=config.ecosystem,
     )
 
     clear_cache_uc = providers.Factory(

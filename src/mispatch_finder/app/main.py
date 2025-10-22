@@ -5,6 +5,7 @@ from typing import Callable, Concatenate, Dict, ParamSpec, TypeVar
 
 from .config import (
     get_cache_dir,
+    get_ecosystem,
     get_github_token,
     get_logs_dir,
     get_model_api_key,
@@ -30,6 +31,7 @@ def _get_default_config() -> dict:
         "mcp_port": 18080,
         "prompt_diff_max_chars": get_prompt_diff_max_chars(),
         "list_limit": 500,
+        "ecosystem": get_ecosystem(),
     }
 
 
@@ -99,10 +101,17 @@ def list_ghsa_ids(container: Container, **kwargs) -> list[str]:
 
 
 @with_container
-def list_ghsa_with_metadata(container: Container, limit: int = 500, **kwargs) -> list:
-    """List GHSA IDs with full metadata (repos, commits, size)."""
+def list_ghsa_with_metadata(container: Container, limit: int = 500, ecosystem: str | None = None, **kwargs) -> list:
+    """List GHSA IDs with full metadata (repos, commits, size).
+
+    Args:
+        container: Dependency injection container
+        limit: Maximum number of vulnerabilities to return
+        ecosystem: Ecosystem to filter by (npm, pypi, etc.). If None, uses config default.
+    """
     vuln_repo = container.vuln_repo()
-    return vuln_repo.list_with_metadata(limit=limit)
+    eco = ecosystem if ecosystem is not None else get_ecosystem()
+    return vuln_repo.list_with_metadata(limit=limit, ecosystem=eco)
 
 
 @with_container

@@ -7,7 +7,8 @@ from dependency_injector import providers
 
 from mispatch_finder.app.container import Container
 from mispatch_finder.app import main
-from mispatch_finder.core.ports import GHSAMeta, MCPServerContext
+from mispatch_finder.core.ports import MCPServerContext
+from mispatch_finder.core.domain.models import Vulnerability, Repository
 from mispatch_finder.infra.mcp.tunnel import Tunnel
 
 
@@ -30,24 +31,43 @@ def create_test_repo(tmp_path: Path) -> tuple[Path, str, str]:
 
 class MockVulnerabilityRepository:
     """Mock implementation of VulnerabilityRepositoryPort."""
-    
-    def __init__(self, repo_url: str = "", commit: str = "", parent_commit: str = "", **kwargs):
-        self._repo_url = repo_url
-        self._commit = commit
-        self._parent_commit = parent_commit
 
-    def fetch_metadata(self, ghsa: str) -> GHSAMeta:
-        return GHSAMeta(
-            ghsa=ghsa,
-            repo_url=self._repo_url,
-            commit=self._commit,
-            parent_commit=self._parent_commit,
+    def __init__(self, repo_url: str = "", commit: str = "", **kwargs):
+        # Parse repo_url to extract owner/name
+        if repo_url and "/" in repo_url:
+            parts = repo_url.rstrip("/").split("/")
+            self._owner = parts[-2] if len(parts) >= 2 else "test"
+            self._name = parts[-1] if len(parts) >= 1 else "repo"
+        else:
+            self._owner = "test"
+            self._name = "repo"
+        self._commit = commit
+
+    def fetch_metadata(self, ghsa: str) -> Vulnerability:
+        return Vulnerability(
+            ghsa_id=ghsa,
+            repository=Repository(owner=self._owner, name=self._name),
+            commit_hash=self._commit,
         )
 
-    def list_ids(self, limit: int) -> list[str]:
+    def list_ids(self, limit: int, ecosystem: str = "npm") -> list[str]:
         return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
 
-    def clear_cache(self) -> None:
+    def list_with_metadata(self, limit: int, ecosystem: str = "npm") -> list[Vulnerability]:
+        return [
+            Vulnerability(
+                ghsa_id="GHSA-1111-2222-3333",
+                repository=Repository(owner=self._owner, name=self._name),
+                commit_hash=self._commit,
+            ),
+            Vulnerability(
+                ghsa_id="GHSA-4444-5555-6666",
+                repository=Repository(owner=self._owner, name=self._name),
+                commit_hash=self._commit,
+            ),
+        ]
+
+    def clear_cache(self, prefix: str | None = None) -> None:
         pass
 
 

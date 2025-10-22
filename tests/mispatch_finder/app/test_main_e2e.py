@@ -7,7 +7,7 @@ from dependency_injector import providers
 
 from mispatch_finder.app import main
 from mispatch_finder.app.container import Container
-from mispatch_finder.core.ports import GHSAMeta, MCPServerContext
+from mispatch_finder.core.ports import MCPServerContext
 from mispatch_finder.infra.mcp.tunnel import Tunnel
 from tests.mispatch_finder.app.conftest import MockVulnerabilityRepository, MockLLM, MockMCPServer, DummyTunnel, MockRepository
 
@@ -58,7 +58,6 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
                 MockVulnerabilityRepository,
                 repo_url=base.as_posix(),
                 commit=c2,
-                parent_commit=c1,
             )
         )
         container.repo.override(

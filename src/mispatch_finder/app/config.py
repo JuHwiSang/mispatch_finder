@@ -78,3 +78,14 @@ def get_prompt_diff_max_chars(env_var: str = "MISPATCH_DIFF_MAX_CHARS") -> int:
     return num if num > 0 else default
 
 
+def get_ecosystem(env_var: str = "MISPATCH_ECOSYSTEM") -> str:
+    """Get the target vulnerability ecosystem.
+
+    Supported ecosystems: npm, pypi, Maven, Go, etc.
+    See cve_collector documentation for full list.
+
+    Default: npm
+    """
+    return os.environ.get(env_var, "npm")
+
+

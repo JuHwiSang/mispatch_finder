@@ -5,33 +5,47 @@ from pathlib import Path
 from typing import Protocol, Optional
 from dataclasses import dataclass
 
-
-@dataclass
-class GHSAMeta:
-    ghsa: str
-    repo_url: str
-    commit: str
-    parent_commit: Optional[str]
-    repo_size_kb: Optional[int] = None  # Repository size in KB, if available
+from .domain.models import Vulnerability
 
 
 class VulnerabilityRepositoryPort(Protocol):
-    """Port for fetching vulnerability metadata and listing vulnerabilities."""
-    
-    def fetch_metadata(self, ghsa: str) -> GHSAMeta:
-        """Fetch detailed metadata for a specific GHSA."""
+    """Port for fetching vulnerability metadata and listing vulnerabilities.
+
+    This port abstracts the cve_collector library, providing domain model conversion:
+    - cve_collector.detail(id) → domain.Vulnerability
+    - cve_collector.list_vulnerabilities() → list[domain.Vulnerability]
+    - cve_collector.clear_cache(prefix) → cache management
+    """
+
+    def fetch_metadata(self, ghsa: str) -> Vulnerability:
+        """Fetch detailed metadata for a specific GHSA.
+
+        Returns:
+            Vulnerability domain model with repository and commit context
+
+        Raises:
+            ValueError: If GHSA not found or metadata is invalid
+        """
         ...
 
-    def list_ids(self, limit: int) -> list[str]:
+    def list_ids(self, limit: int, ecosystem: str = "npm") -> list[str]:
         """List available GHSA identifiers (ID only, no metadata)."""
         ...
-    
-    def list_with_metadata(self, limit: int) -> list[GHSAMeta]:
-        """List vulnerabilities with full metadata (more efficient than fetching individually)."""
+
+    def list_with_metadata(self, limit: int, ecosystem: str = "npm") -> list[Vulnerability]:
+        """List vulnerabilities with full metadata.
+
+        More efficient than calling fetch_metadata() individually,
+        as it retrieves all data in batched operations.
+        """
         ...
 
-    def clear_cache(self) -> None:
-        """Clear cached vulnerability data."""
+    def clear_cache(self, prefix: Optional[str] = None) -> None:
+        """Clear cached vulnerability data.
+
+        Args:
+            prefix: Cache key prefix ('osv', 'gh_repo', or None for all)
+        """
         ...
 
 

@@ -43,23 +43,24 @@ class RunAnalysisUseCase:
 
         try:
             # 1) Fetch GHSA metadata
-            meta = self._vuln_repo.fetch_metadata(ghsa)
+            vuln = self._vuln_repo.fetch_metadata(ghsa)
             logger.info("ghsa_meta", extra={
                 "payload": {
                     "type": "ghsa_meta",
                     "ghsa": ghsa,
-                    "meta": {
-                        "repo_url": meta.repo_url,
-                        "commit": meta.commit,
-                        "parent_commit": meta.parent_commit,
+                    "vulnerability": {
+                        "repo_url": vuln.repository.url,
+                        "commit": vuln.commit_hash,
+                        "cve_id": vuln.cve_id,
+                        "severity": vuln.severity,
                     },
                 }
             })
 
             # 2) Prepare repos
             current, previous = self._repo.prepare_workdirs(
-                repo_url=meta.repo_url,
-                commit=meta.commit,
+                repo_url=vuln.repository.url,
+                commit=vuln.commit_hash,
                 force_reclone=force_reclone,
             )
             logger.info("repos_prepared", extra={
@@ -76,7 +77,7 @@ class RunAnalysisUseCase:
             base_worktree = current or previous
             diff_full = ""
             if base_worktree is not None:
-                diff_full = self._repo.get_diff(workdir=base_worktree, commit=meta.commit)
+                diff_full = self._repo.get_diff(workdir=base_worktree, commit=vuln.commit_hash)
             
             max_chars = self._prompt_diff_max_chars
             diff_text = diff_full
@@ -113,8 +114,8 @@ class RunAnalysisUseCase:
             # 5) Build prompt and call LLM
             prompt = build_prompt(
                 ghsa=ghsa,
-                repo_url=meta.repo_url,
-                commit=meta.commit,
+                repo_url=vuln.repository.url,
+                commit=vuln.commit_hash,
                 has_previous=mcp_ctx.has_previous,
                 has_current=mcp_ctx.has_current,
                 diff_text=diff_text,

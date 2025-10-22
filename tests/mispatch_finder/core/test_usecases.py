@@ -9,9 +9,9 @@ from mispatch_finder.core.ports import (
     LLMPort,
     ResultStorePort,
     TokenGeneratorPort,
-    GHSAMeta,
     MCPServerContext,
 )
+from mispatch_finder.core.domain.models import Vulnerability, Repository
 from mispatch_finder.core.usecases.run_analysis import RunAnalysisUseCase
 from mispatch_finder.core.usecases.list_ghsa import ListGHSAUseCase
 from mispatch_finder.core.usecases.clear_cache import ClearCacheUseCase
@@ -21,22 +21,36 @@ class FakeVulnRepo:
     def __init__(self):
         self.fetched = []
         self.listed = []
+        self.cache_cleared_with = []
 
-    def fetch_metadata(self, ghsa: str) -> GHSAMeta:
+    def fetch_metadata(self, ghsa: str) -> Vulnerability:
         self.fetched.append(ghsa)
-        return GHSAMeta(
-            ghsa=ghsa,
-            repo_url="https://github.com/test/repo",
-            commit="abc123",
-            parent_commit="parent123",
+        return Vulnerability(
+            ghsa_id=ghsa,
+            repository=Repository(owner="test", name="repo"),
+            commit_hash="abc123",
         )
 
-    def list_ids(self, limit: int) -> list[str]:
-        self.listed.append(limit)
+    def list_ids(self, limit: int, ecosystem: str = "npm") -> list[str]:
+        self.listed.append((limit, ecosystem))
         return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
 
-    def clear_cache(self) -> None:
-        pass
+    def list_with_metadata(self, limit: int, ecosystem: str = "npm") -> list[Vulnerability]:
+        return [
+            Vulnerability(
+                ghsa_id="GHSA-1111-2222-3333",
+                repository=Repository(owner="test", name="repo1"),
+                commit_hash="abc123",
+            ),
+            Vulnerability(
+                ghsa_id="GHSA-4444-5555-6666",
+                repository=Repository(owner="test", name="repo2"),
+                commit_hash="def456",
+            ),
+        ]
+
+    def clear_cache(self, prefix: Optional[str] = None) -> None:
+        self.cache_cleared_with.append(prefix)
 
 
 class FakeRepo:
@@ -118,29 +132,60 @@ def test_run_analysis_usecase_executes_full_flow():
 
 def test_list_ghsa_usecase():
     vuln_repo = FakeVulnRepo()
-    uc = ListGHSAUseCase(vuln_repo=vuln_repo, limit=500)
-    
+    uc = ListGHSAUseCase(vuln_repo=vuln_repo, limit=500, ecosystem="npm")
+
     result = uc.execute()
-    
+
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
-    assert vuln_repo.listed == [500]
+    assert vuln_repo.listed == [(500, "npm")]
+
+
+def test_list_ghsa_usecase_custom_ecosystem():
+    vuln_repo = FakeVulnRepo()
+    uc = ListGHSAUseCase(vuln_repo=vuln_repo, limit=100, ecosystem="pypi")
+
+    result = uc.execute()
+
+    assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
+    assert vuln_repo.listed == [(100, "pypi")]
 
 
 def test_clear_cache_usecase():
     from mispatch_finder.core.ports import CachePort
-    
+
     class FakeCache:
         def __init__(self):
             self.cleared = False
-        
+
         def clear_all(self) -> None:
             self.cleared = True
-    
+
     cache = FakeCache()
     vuln_repo = FakeVulnRepo()
-    
+
     uc = ClearCacheUseCase(cache=cache, vuln_repo=vuln_repo)
     uc.execute()
-    
+
     assert cache.cleared
+    assert vuln_repo.cache_cleared_with == [None]
+
+
+def test_clear_cache_usecase_with_prefix():
+    from mispatch_finder.core.ports import CachePort
+
+    class FakeCache:
+        def __init__(self):
+            self.cleared = False
+
+        def clear_all(self) -> None:
+            self.cleared = True
+
+    cache = FakeCache()
+    vuln_repo = FakeVulnRepo()
+
+    uc = ClearCacheUseCase(cache=cache, vuln_repo=vuln_repo)
+    uc.execute(vuln_cache_prefix="osv")
+
+    assert cache.cleared
+    assert vuln_repo.cache_cleared_with == ["osv"]
 

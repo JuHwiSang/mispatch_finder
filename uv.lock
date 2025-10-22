@@ -341,8 +341,8 @@ wheels = [
 
 [[package]]
 name = "cve-collector"
-version = "0.5.0"
-source = { git = "https://github.com/JuHwiSang/cve_collector#ab67cc4f9fb4d3495bfd596b8f91921f0268e99a" }
+version = "0.5.1"
+source = { git = "https://github.com/JuHwiSang/cve_collector#714573103e09032bae90d38f117caeefe8ef6b5f" }
 dependencies = [
     { name = "asteval" },
     { name = "cvss" },
