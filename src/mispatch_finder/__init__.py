@@ -1,9 +1,9 @@
-from .app.main import run_analysis, list_ghsa_ids, clear_all_caches, logs
+from .app.main import analyze, list_ids, clear, logs
 
 __all__ = [
-    "run_analysis",
-    "list_ghsa_ids",
-    "clear_all_caches",
+    "analyze",
+    "list_ids",
+    "clear",
     "logs",
 ]
 

@@ -32,14 +32,6 @@ class VulnerabilityRepositoryPort(Protocol):
         """List available GHSA identifiers (ID only, no metadata)."""
         ...
 
-    def list_with_metadata(self, limit: int, ecosystem: str = "npm") -> list[Vulnerability]:
-        """List vulnerabilities with full metadata.
-
-        More efficient than calling fetch_metadata() individually,
-        as it retrieves all data in batched operations.
-        """
-        ...
-
     def clear_cache(self, prefix: Optional[str] = None) -> None:
         """Clear cached vulnerability data.
 

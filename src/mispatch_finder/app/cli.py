@@ -10,7 +10,7 @@ import re
 
 import typer
 
-from .main import run_analysis, list_ghsa_ids, list_ghsa_with_metadata, clear_all_caches, logs as logs_main
+from .main import analyze as analyze_main, list_ids, clear, logs as logs_main
 from .config import get_model_api_key, get_logs_dir, get_github_token
 from ..infra.logging import build_json_console_handler, build_json_file_handler
 from ..shared.log_summary import summarize_logs
@@ -68,7 +68,7 @@ def analyze(
         typer.echo("GitHub token required via GITHUB_TOKEN", err=True)
         raise typer.Exit(code=2)
 
-    result = run_analysis(
+    result = analyze_main(
         ghsa=ghsa,
         provider=provider,
         model=model,
@@ -82,16 +82,16 @@ def analyze(
 @app.command(name="list")
 def list_command():
     """List available GHSA identifiers from vulnerability database."""
-    items = list_ghsa_ids()
+    items = list_ids()
     typer.echo(json.dumps({"items": items}, ensure_ascii=False, indent=2))
 
 
 
 @app.command()
-def clear():
+def clear_command():
     """Clear local caches and CVE collector state."""
     typer.echo("Clearing caches...")
-    clear_all_caches()
+    clear()
     typer.echo("Done.")
 
 
@@ -113,7 +113,7 @@ def batch(
     limit: int | None = typer.Option(None, "--limit", "-n", help="Max number of successful analyses to run"),
 ):
     """Run batch analysis for all pending GHSA identifiers."""
-    items = list_ghsa_ids()
+    items = list_ids()
 
     logs_dir = get_logs_dir()
     summaries = summarize_logs(logs_dir, verbose=False)

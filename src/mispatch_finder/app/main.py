@@ -78,7 +78,7 @@ def with_container(
 
 
 @with_container
-def run_analysis(
+def analyze(
     container: Container,
     *,
     ghsa: str,
@@ -94,28 +94,14 @@ def run_analysis(
 
 
 @with_container
-def list_ghsa_ids(container: Container, **kwargs) -> list[str]:
+def list_ids(container: Container, **kwargs) -> list[str]:
     """List available GHSA IDs."""
     uc = container.list_uc()
     return uc.execute()
 
 
 @with_container
-def list_ghsa_with_metadata(container: Container, limit: int = 500, ecosystem: str | None = None, **kwargs) -> list:
-    """List GHSA IDs with full metadata (repos, commits, size).
-
-    Args:
-        container: Dependency injection container
-        limit: Maximum number of vulnerabilities to return
-        ecosystem: Ecosystem to filter by (npm, pypi, etc.). If None, uses config default.
-    """
-    vuln_repo = container.vuln_repo()
-    eco = ecosystem if ecosystem is not None else get_ecosystem()
-    return vuln_repo.list_with_metadata(limit=limit, ecosystem=eco)
-
-
-@with_container
-def clear_all_caches(container: Container, **kwargs) -> None:
+def clear(container: Container, **kwargs) -> None:
     """Clear all caches."""
     uc = container.clear_cache_uc()
     uc.execute()
