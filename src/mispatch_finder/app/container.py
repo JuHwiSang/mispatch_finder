@@ -7,13 +7,15 @@ from ..core.usecases.run_analysis import RunAnalysisUseCase
 from ..core.usecases.list_ghsa import ListGHSAUseCase
 from ..core.usecases.clear_cache import ClearCacheUseCase
 from ..core.usecases.show_log import ShowLogUseCase
-from ..infra.adapters.vulnerability_repository import VulnerabilityRepository
-from ..infra.adapters.repository import Repository
-from ..infra.adapters.mcp_server import MCPServer
-from ..infra.adapters.llm import LLM
-from ..infra.adapters.result_store import ResultStore
-from ..infra.adapters.log_store import LogStore
-from ..infra.adapters.cache import Cache
+from ..core.services import DiffService, JsonExtractor, AnalysisOrchestrator
+from ..infra.vulnerability_repository import VulnerabilityRepository
+from ..infra.repository import Repository
+from ..infra.mcp_server import MCPServer
+from ..infra.llm import LLM
+from ..infra.result_store import ResultStore
+from ..infra.log_store import LogStore
+from ..infra.cache import Cache
+from ..infra.logging import AnalysisLogger
 
 
 class Container(containers.DeclarativeContainer):
@@ -53,6 +55,9 @@ class Container(containers.DeclarativeContainer):
 
     token_gen = providers.Singleton(DefaultTokenGenerator)
 
+    # Logger
+    logger = providers.Singleton(AnalysisLogger, logger_name="mispatch_finder")
+
     # LLM adapter (parameterized)
     llm = providers.Factory(
         LLM,
@@ -61,16 +66,32 @@ class Container(containers.DeclarativeContainer):
         api_key=config.llm_api_key,
     )
 
-    # Use cases
-    run_analysis = providers.Factory(
-        RunAnalysisUseCase,
+    # Domain services
+    diff_service = providers.Factory(
+        DiffService,
+        repo=repo,
+        max_chars=config.prompt_diff_max_chars.as_int(),
+    )
+
+    json_extractor = providers.Singleton(JsonExtractor)
+
+    analysis_orchestrator = providers.Factory(
+        AnalysisOrchestrator,
         vuln_repo=vuln_repo,
         repo=repo,
         mcp=mcp_server,
         llm=llm,
-        store=result_store,
         token_gen=token_gen,
-        prompt_diff_max_chars=config.prompt_diff_max_chars.as_int(),
+        logger=logger,
+        diff_service=diff_service,
+        json_extractor=json_extractor,
+    )
+
+    # Use cases
+    run_analysis = providers.Factory(
+        RunAnalysisUseCase,
+        orchestrator=analysis_orchestrator,
+        store=result_store,
     )
 
     list_ghsa = providers.Factory(

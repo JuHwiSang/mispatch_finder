@@ -104,21 +104,38 @@ class FakeTokenGen:
 
 
 def test_run_analysis_usecase_executes_full_flow():
+    """Test that RunAnalysisUseCase delegates to orchestrator and stores result."""
+    from mispatch_finder.infra.logging import AnalysisLogger
+    from mispatch_finder.core.services import AnalysisOrchestrator, DiffService, JsonExtractor
+
     vuln_repo = FakeVulnRepo()
     repo = FakeRepo()
     mcp = FakeMCP()
     llm = FakeLLM()
     store = FakeStore()
     token_gen = FakeTokenGen()
+    logger = AnalysisLogger()
 
-    uc = RunAnalysisUseCase(
+    # Create services
+    diff_service = DiffService(repo=repo, max_chars=100000)
+    json_extractor = JsonExtractor()
+
+    # Create orchestrator
+    orchestrator = AnalysisOrchestrator(
         vuln_repo=vuln_repo,
         repo=repo,
         mcp=mcp,
         llm=llm,
-        store=store,
         token_gen=token_gen,
-        prompt_diff_max_chars=100000,
+        logger=logger,
+        diff_service=diff_service,
+        json_extractor=json_extractor,
+    )
+
+    # Create use case (now much simpler)
+    uc = RunAnalysisUseCase(
+        orchestrator=orchestrator,
+        store=store,
     )
 
     result = uc.execute(ghsa="GHSA-TEST-1234-5678", force_reclone=False)

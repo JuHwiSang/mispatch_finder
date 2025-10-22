@@ -11,10 +11,10 @@ from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 from fastmcp.server.middleware.logging import LoggingMiddleware
 from repo_read_mcp import make_mcp_server as make_repo_mcp
 
-from ...core.ports import MCPServerPort, MCPServerContext
-from ..mcp.wiretap_logging import WiretapLoggingMiddleware
-from ..mcp.tunnel import Tunnel
-from ...shared.list_tools import list_tools
+from ..core.ports import MCPServerPort, MCPServerContext
+from .mcp.wiretap_logging import WiretapLoggingMiddleware
+from .mcp.tunnel import Tunnel
+from ..shared.list_tools import list_tools
 
 logger = logging.getLogger(__name__)
 

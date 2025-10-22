@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 import logging
 
 from itdev_llm_adapter import Toolset
 from itdev_llm_adapter.factory import get_adapter
 
-from ...core.ports import LLMPort
+from ..core.ports import LLMPort
 
 logger = logging.getLogger(__name__)
 
@@ -60,24 +59,15 @@ class LLM:
                 }
             })
 
-        # Extract JSON block if wrapped in markdown or text
-        start = text.find('{')
-        end = text.rfind('}')
-        if start != -1 and end != -1 and end > start:
-            parsed = json.loads(text[start:end+1])
-            result = json.dumps(parsed, ensure_ascii=False)
-        else:
-            result = text
-        
         # Log LLM output
         logger.info("llm_output", extra={
             "payload": {
                 "type": "llm_output",
                 "provider": self._provider,
                 "model": self._model,
-                "raw_text_len": len(result),
-                "raw_text": result,
+                "raw_text_len": len(text),
+                "raw_text": text,
             }
         })
-        
-        return result
+
+        return text

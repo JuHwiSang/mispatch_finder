@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from ...core.ports import LogStorePort
-from ...shared.log_summary import summarize_logs, format_summary_table, parse_log_details, format_single_summary
+from ..core.ports import LogStorePort
+from ..shared.log_summary import summarize_logs, format_summary_table, parse_log_details, format_single_summary
 
 
 class LogStore:

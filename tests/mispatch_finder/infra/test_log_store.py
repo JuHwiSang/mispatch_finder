@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from mispatch_finder.infra.adapters.log_store import LogStore
+from mispatch_finder.infra.log_store import LogStore
 
 
 def test_log_store_read_log_verbose(tmp_path):

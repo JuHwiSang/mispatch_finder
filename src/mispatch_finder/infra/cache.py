@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...core.ports import CachePort
-from ...shared.rmtree_force import rmtree_force
+from ..core.ports import CachePort
+from ..shared.rmtree_force import rmtree_force
 
 
 class Cache:

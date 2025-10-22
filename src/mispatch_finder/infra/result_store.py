@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from ...core.ports import ResultStorePort
+from ..core.ports import ResultStorePort
 
 
 class ResultStore:

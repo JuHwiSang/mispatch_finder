@@ -6,7 +6,7 @@ from typing import Optional
 
 from git import Repo
 
-from ...core.ports import RepositoryPort
+from ..core.ports import RepositoryPort
 
 
 class Repository:

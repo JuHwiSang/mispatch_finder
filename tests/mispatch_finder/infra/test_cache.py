@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from mispatch_finder.infra.adapters.cache import Cache
+from mispatch_finder.infra.cache import Cache
 
 
 def test_cache_clear_all_removes_directory(tmp_path):

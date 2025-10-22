@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from mispatch_finder.shared.json_logging import build_json_console_handler, build_json_file_handler
+from mispatch_finder.infra.logging import build_json_console_handler, build_json_file_handler
 
 
 def test_build_json_console_handler():

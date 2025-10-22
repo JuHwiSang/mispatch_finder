@@ -1,7 +1,7 @@
 from pathlib import Path
 from git import Repo
 
-from mispatch_finder.infra.adapters.repository import Repository
+from mispatch_finder.infra.repository import Repository
 
 
 def test_repository_adapter_prepare_workdirs(tmp_path):

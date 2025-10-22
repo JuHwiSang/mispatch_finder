@@ -1,4 +1,4 @@
-from mispatch_finder.infra.adapters.result_store import ResultStore
+from mispatch_finder.infra.result_store import ResultStore
 
 
 def test_result_store_save_and_load(tmp_path):
