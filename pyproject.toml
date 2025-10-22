@@ -38,4 +38,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [project.scripts]
-mispatch_finder = "mispatch_finder.app.cli:app"
+mispatch-finder = "mispatch_finder.app.cli:app"
