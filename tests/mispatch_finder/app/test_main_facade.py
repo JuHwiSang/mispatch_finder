@@ -1,12 +1,12 @@
 """Facade function tests for main module."""
 from pathlib import Path
 
-from mispatch_finder.app.main import run_analysis, list_ghsa_ids, clear_all_caches, logs
+from mispatch_finder.app.main import analyze, list_ids, clear, logs
 
 
-def test_run_analysis_with_optional_params(mock_container_for_run_analysis):
-    """Test that run_analysis works with optional parameters."""
-    result = run_analysis(
+def test_analyze_with_optional_params(mock_container_for_analyze):
+    """Test that analyze works with optional parameters."""
+    result = analyze(
         ghsa="GHSA-OPT-TEST",
         force_reclone=True,
     )
@@ -16,23 +16,23 @@ def test_run_analysis_with_optional_params(mock_container_for_run_analysis):
     assert result["raw_text"]
 
 
-def test_list_ghsa_ids_returns_list(mock_container_for_list_ghsa):
-    """Test that list_ghsa_ids returns a list of GHSA IDs."""
-    result = list_ghsa_ids()
+def test_list_ids_returns_list(mock_container_for_list):
+    """Test that list_ids returns a list of GHSA IDs."""
+    result = list_ids()
     
     assert isinstance(result, list)
     assert len(result) == 2
     assert all(ghsa.startswith("GHSA-") for ghsa in result)
 
 
-def test_clear_all_caches_executes(tmp_path, mock_container_for_clear_cache):
-    """Test that clear_all_caches executes without error."""
+def test_clear_executes(tmp_path, mock_container_for_clear):
+    """Test that clear executes without error."""
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
     (cache_dir / "test.txt").write_text("test", encoding="utf-8")
-    
+
     # Should not raise
-    clear_all_caches()
+    clear()
 
 
 def test_logs_with_ghsa(tmp_path, mock_container_for_logs):
@@ -63,9 +63,9 @@ def test_logs_without_ghsa(tmp_path, mock_container_for_logs):
     assert isinstance(result, list)
 
 
-def test_run_analysis_with_mocked_dependencies(mock_container_for_run_analysis):
-    """Test run_analysis with fully mocked dependencies."""
-    result = run_analysis(
+def test_analyze_with_mocked_dependencies(mock_container_for_analyze):
+    """Test analyze with fully mocked dependencies."""
+    result = analyze(
         ghsa="GHSA-TEST-E2E",
         force_reclone=True,
     )
@@ -75,11 +75,11 @@ def test_run_analysis_with_mocked_dependencies(mock_container_for_run_analysis):
     assert result["raw_text"]
 
 
-def test_run_analysis_saves_result(mock_container_for_run_analysis):
-    """Test that run_analysis saves the result to disk."""
-    repo_dir, c1, c2 = mock_container_for_run_analysis
-    
-    result = run_analysis(
+def test_analyze_saves_result(mock_container_for_analyze):
+    """Test that analyze saves the result to disk."""
+    repo_dir, c1, c2 = mock_container_for_analyze
+
+    result = analyze(
         ghsa="GHSA-SAVE-TEST",
         force_reclone=False,
     )

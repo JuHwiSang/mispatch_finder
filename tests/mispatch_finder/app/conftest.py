@@ -53,20 +53,6 @@ class MockVulnerabilityRepository:
     def list_ids(self, limit: int, ecosystem: str = "npm") -> list[str]:
         return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
 
-    def list_with_metadata(self, limit: int, ecosystem: str = "npm") -> list[Vulnerability]:
-        return [
-            Vulnerability(
-                ghsa_id="GHSA-1111-2222-3333",
-                repository=Repository(owner=self._owner, name=self._name),
-                commit_hash=self._commit,
-            ),
-            Vulnerability(
-                ghsa_id="GHSA-4444-5555-6666",
-                repository=Repository(owner=self._owner, name=self._name),
-                commit_hash=self._commit,
-            ),
-        ]
-
     def clear_cache(self, prefix: str | None = None) -> None:
         pass
 
@@ -178,8 +164,8 @@ def _create_mocked_container(
 
 
 @pytest.fixture
-def mock_container_for_run_analysis(tmp_path, monkeypatch):
-    """Fixture to override container with mocks for run_analysis tests.
+def mock_container_for_analyze(tmp_path, monkeypatch):
+    """Fixture to override container with mocks for analyze tests.
     
     This fixture:
     - Creates a test git repository with two commits
@@ -209,8 +195,8 @@ def mock_container_for_run_analysis(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def mock_container_for_list_ghsa(tmp_path, monkeypatch):
-    """Fixture for list_ghsa_ids tests."""
+def mock_container_for_list(tmp_path, monkeypatch):
+    """Fixture for list_ids tests."""
     repo_dir, c1, c2 = create_test_repo(tmp_path)
     
     def mocked_container_class():
@@ -224,8 +210,8 @@ def mock_container_for_list_ghsa(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def mock_container_for_clear_cache(tmp_path, monkeypatch):
-    """Fixture for clear_all_caches tests."""
+def mock_container_for_clear(tmp_path, monkeypatch):
+    """Fixture for clear tests."""
     def mocked_container_class():
         container = Container()
         config = main._get_default_config()

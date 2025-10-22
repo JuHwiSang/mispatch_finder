@@ -35,20 +35,6 @@ class FakeVulnRepo:
         self.listed.append((limit, ecosystem))
         return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
 
-    def list_with_metadata(self, limit: int, ecosystem: str = "npm") -> list[Vulnerability]:
-        return [
-            Vulnerability(
-                ghsa_id="GHSA-1111-2222-3333",
-                repository=Repository(owner="test", name="repo1"),
-                commit_hash="abc123",
-            ),
-            Vulnerability(
-                ghsa_id="GHSA-4444-5555-6666",
-                repository=Repository(owner="test", name="repo2"),
-                commit_hash="def456",
-            ),
-        ]
-
     def clear_cache(self, prefix: Optional[str] = None) -> None:
         self.cache_cleared_with.append(prefix)
 

@@ -74,7 +74,7 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
 
     monkeypatch.setattr("mispatch_finder.app.main.Container", mocked_container_class)
 
-    result = main.run_analysis(
+    result = main.analyze(
         ghsa="GHSA-TEST-E2E",
         force_reclone=True,
     )

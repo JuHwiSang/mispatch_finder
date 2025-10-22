@@ -143,11 +143,6 @@ class Vulnerability:
   - Returns only GHSA IDs (no metadata) for efficient listing
   - Validates GHSA format: `GHSA-xxxx-xxxx-xxxx`
 
-- `list_with_metadata(limit: int, ecosystem: str = "npm") -> list[Vulnerability]`
-  - Uses `cve_collector.list_vulnerabilities(ecosystem, limit, detailed=True)`
-  - More efficient than calling `fetch_metadata()` individually
-  - Returns domain `Vulnerability` objects in batched operation
-
 - `clear_cache(prefix: str | None = None) -> None`
   - Uses `cve_collector.clear_cache(prefix)`
   - `prefix=None`: clear all caches
