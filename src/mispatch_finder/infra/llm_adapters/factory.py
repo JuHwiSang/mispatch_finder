@@ -4,8 +4,8 @@ from typing import Dict, List, Optional
 
 from .types import Toolset, LLMResponse
 from .interface import LLMHostedMCPAdapter
-from .adapters.openai_adapter import OpenAIHostedMCPAdapter
-from .adapters.anthropic_adapter import AnthropicHostedMCPAdapter
+from .openai_adapter import OpenAIHostedMCPAdapter
+from .anthropic_adapter import AnthropicHostedMCPAdapter
 
 
 def get_adapter(provider: str, model: str, api_key: str) -> LLMHostedMCPAdapter:
@@ -39,5 +39,3 @@ def run_with_anthropic(
 ) -> LLMResponse:
     """One-shot helper to run with Anthropic using the MCP connector beta."""
     return AnthropicHostedMCPAdapter(model, api_key).run(prompt, toolsets, max_output_tokens=max_output_tokens)
-
-

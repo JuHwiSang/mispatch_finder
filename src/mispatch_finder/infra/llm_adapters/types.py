@@ -39,5 +39,3 @@ class TokenUsage:
 class LLMResponse:
     text: str
     usage: Optional[TokenUsage] = None
-
-

@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 import anthropic
 from anthropic.types.beta import BetaRequestMCPServerURLDefinitionParam
 
-from itdev_llm_adapter.types import Toolset, LLMResponse, TokenUsage
+from .types import Toolset, LLMResponse, TokenUsage
 
 
 class AnthropicHostedMCPAdapter:
@@ -63,5 +63,3 @@ class AnthropicHostedMCPAdapter:
         tt = (iu or 0) + (ou or 0) if (iu is not None or ou is not None) else None
         usage = TokenUsage(input_tokens=iu, output_tokens=ou, total_tokens=tt)
         return LLMResponse(text="".join(texts) if texts else str(message), usage=usage)
-
-

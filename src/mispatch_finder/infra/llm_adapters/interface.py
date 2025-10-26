@@ -19,5 +19,3 @@ class LLMHostedMCPAdapter(Protocol):
     ) -> LLMResponse:
         """Run a request with MCP access and return normalized text + token usage."""
         raise NotImplementedError
-
-

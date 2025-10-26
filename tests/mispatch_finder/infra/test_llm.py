@@ -1,8 +1,8 @@
 import pytest
-from itdev_llm_adapter.types import LLMResponse, TokenUsage
 
 from mispatch_finder.infra import llm as llm_module
 from mispatch_finder.infra.llm import LLM
+from mispatch_finder.infra.llm_adapters.types import LLMResponse, TokenUsage
 
 
 def test_llm_initialization():

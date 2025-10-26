@@ -2,9 +2,9 @@ import types
 
 import pytest
 
-from itdev_llm_adapter import Toolset
-from itdev_llm_adapter.adapters.openai_adapter import OpenAIHostedMCPAdapter
-from itdev_llm_adapter.types import TokenUsage
+from mispatch_finder.infra.llm_adapters import Toolset
+from mispatch_finder.infra.llm_adapters.openai_adapter import OpenAIHostedMCPAdapter
+from mispatch_finder.infra.llm_adapters.types import TokenUsage
 
 
 class DummyResponse:
@@ -36,7 +36,7 @@ class DummyOpenAI:
 @pytest.fixture(autouse=True)
 def mock_openai(monkeypatch):
     # Replace OpenAI class used in adapter with dummy
-    import itdev_llm_adapter.adapters.openai_adapter as mod
+    import mispatch_finder.infra.llm_adapters.openai_adapter as mod
 
     def _factory(*, api_key: str):
         return DummyOpenAI(api_key=api_key)
@@ -61,7 +61,7 @@ def test_openai_adapter_builds_tools_and_calls_create(monkeypatch):
     dummy_client = DummyOpenAI(api_key="sk-openai-test")
     dummy_client.responses = DummyResponsesClient(expected_tools=expected_tools)
 
-    import itdev_llm_adapter.adapters.openai_adapter as mod
+    import mispatch_finder.infra.llm_adapters.openai_adapter as mod
     monkeypatch.setattr(mod, "OpenAI", lambda api_key: dummy_client)
 
     adapter = OpenAIHostedMCPAdapter(model="o3", api_key="sk-openai-test")
@@ -78,5 +78,3 @@ def test_openai_adapter_builds_tools_and_calls_create(monkeypatch):
         ],
     )
     assert response.text == "ok-openai"
-
-

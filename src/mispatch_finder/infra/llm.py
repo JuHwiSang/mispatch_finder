@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from itdev_llm_adapter import Toolset
-from itdev_llm_adapter.factory import get_adapter
-
+from .llm_adapters import Toolset, get_adapter
 from ..core.ports import LLMPort
 
 logger = logging.getLogger(__name__)

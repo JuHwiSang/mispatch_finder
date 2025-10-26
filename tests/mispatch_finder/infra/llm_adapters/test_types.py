@@ -1,4 +1,4 @@
-from itdev_llm_adapter import Toolset
+from mispatch_finder.infra.llm_adapters import Toolset
 
 
 def test_toolset_defaults():
@@ -22,5 +22,3 @@ def test_toolset_custom_fields():
     assert ts.headers["X-Trace"] == "1"
     assert ts.allowed_tools == ["echo"]
     assert ts.require_approval == {"echo": True}
-
-

@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 from openai import OpenAI
 from openai.types.responses.tool_param import ToolParam
 
-from itdev_llm_adapter.types import Toolset, LLMResponse, TokenUsage
+from .types import Toolset, LLMResponse, TokenUsage
 
 
 class OpenAIHostedMCPAdapter:
@@ -67,5 +67,3 @@ class OpenAIHostedMCPAdapter:
             tt = u.total_tokens if u.total_tokens is not None else (iu or 0) + (ou or 0)
             usage = TokenUsage(input_tokens=iu, output_tokens=ou, total_tokens=tt)
         return LLMResponse(text=response.output_text or str(response), usage=usage)
-
-

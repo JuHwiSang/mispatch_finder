@@ -1,9 +1,9 @@
 import pytest
 import types
 
-from itdev_llm_adapter import Toolset
-from itdev_llm_adapter.adapters.anthropic_adapter import AnthropicHostedMCPAdapter
-from itdev_llm_adapter.types import TokenUsage
+from mispatch_finder.infra.llm_adapters import Toolset
+from mispatch_finder.infra.llm_adapters.anthropic_adapter import AnthropicHostedMCPAdapter
+from mispatch_finder.infra.llm_adapters.types import TokenUsage
 
 
 class DummyMessage:
@@ -42,7 +42,7 @@ class DummyAnthropic:
 
 @pytest.fixture(autouse=True)
 def mock_anthropic(monkeypatch):
-    import itdev_llm_adapter.adapters.anthropic_adapter as mod
+    import mispatch_finder.infra.llm_adapters.anthropic_adapter as mod
 
     monkeypatch.setattr(mod, "anthropic", types.SimpleNamespace(Anthropic=lambda api_key: DummyAnthropic(api_key=api_key)))
     yield
@@ -63,5 +63,3 @@ def test_anthropic_adapter_builds_mcp_servers_and_calls_create(monkeypatch):
         max_output_tokens=256,
     )
     assert response.text == "ok-anthropic"
-
-
