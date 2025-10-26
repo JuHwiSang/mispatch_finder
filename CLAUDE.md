@@ -17,6 +17,7 @@ src/mispatch_finder/
 │   ├── usecases/          # Use Cases (Application Logic)
 │   └── ports.py           # Port Interfaces (Dependency Inversion)
 ├── infra/                 # Infrastructure Layer (Adapters)
+│   ├── llm_adapters/      # LLM Provider Adapters (OpenAI, Anthropic)
 │   ├── logging/           # Structured Logging
 │   └── mcp/              # Model Context Protocol Servers
 └── shared/                # Shared Utilities
@@ -155,6 +156,20 @@ class Repository:
    - All imports moved to file top (no mid-function imports)
    - Example: `cli.py` now imports `get_github_token` at line 14 instead of line 66
 
+### Phase 6: LLM Adapter Migration (2025-10)
+9. **Migrated itdev_llm_adapter to infra/llm_adapters/**
+   - Moved from separate module → `infra/llm_adapters/`
+   - No longer an external dependency, now part of infra layer
+   - Structure:
+     - `types.py`: Data types (Toolset, LLMResponse, TokenUsage, Provider)
+     - `interface.py`: LLMHostedMCPAdapter protocol
+     - `openai_adapter.py`: OpenAI Responses API implementation
+     - `anthropic_adapter.py`: Anthropic Messages API implementation
+     - `factory.py`: get_adapter() factory function
+   - Updated imports in `infra/llm.py`: `from .llm_adapters import Toolset, get_adapter`
+   - Migrated tests to `tests/mispatch_finder/infra/llm_adapters/`
+   - Reason: No need for separate module, simpler as infra component
+
 ## Key Files & Locations
 
 ### Application Layer
@@ -175,7 +190,13 @@ class Repository:
 ### Infrastructure Layer
 - **Vulnerability Repository**: [infra/vulnerability_repository.py](src/mispatch_finder/infra/vulnerability_repository.py) - cve_collector adapter
 - **Git Repository**: [infra/git_repo.py](src/mispatch_finder/infra/git_repo.py) - Git operations
-- **LLM**: [infra/llm.py](src/mispatch_finder/infra/llm.py) - LLM API adapter
+- **LLM**: [infra/llm.py](src/mispatch_finder/infra/llm.py) - LLM API adapter (uses llm_adapters)
+- **LLM Adapters**: [infra/llm_adapters/](src/mispatch_finder/infra/llm_adapters/) - Provider implementations
+  - [types.py](src/mispatch_finder/infra/llm_adapters/types.py) - Data types (Toolset, LLMResponse, TokenUsage)
+  - [interface.py](src/mispatch_finder/infra/llm_adapters/interface.py) - LLMHostedMCPAdapter protocol
+  - [openai_adapter.py](src/mispatch_finder/infra/llm_adapters/openai_adapter.py) - OpenAI Responses API
+  - [anthropic_adapter.py](src/mispatch_finder/infra/llm_adapters/anthropic_adapter.py) - Anthropic Messages API
+  - [factory.py](src/mispatch_finder/infra/llm_adapters/factory.py) - Adapter factory (get_adapter)
 - **MCP Server**: [infra/mcp_server.py](src/mispatch_finder/infra/mcp_server.py) - MCP server management
 - **Logging**: [infra/logging/](src/mispatch_finder/infra/logging/) - Structured logging components
 - **Stores**: [infra/store.py](src/mispatch_finder/infra/store.py), [infra/log_store.py](src/mispatch_finder/infra/log_store.py)
@@ -224,10 +245,11 @@ Optional:
 
 - **cve_collector**: Vulnerability data source (GitHub Security Advisories + OSV)
 - **repo_read_mcp**: MCP server for repository reading
-- **itdev_llm_adapter**: LLM provider abstraction (OpenAI, Anthropic)
 - **dependency-injector**: DI container framework
 - **typer**: CLI framework
 - **GitPython**: Git operations
+- **openai**: OpenAI SDK (used by infra/llm_adapters/openai_adapter.py)
+- **anthropic**: Anthropic SDK (used by infra/llm_adapters/anthropic_adapter.py)
 
 ## Notes for Future Development
 
