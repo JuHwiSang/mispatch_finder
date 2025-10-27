@@ -5,7 +5,7 @@ from typing import Optional
 
 from mispatch_finder.core.services import DiffService, JsonExtractor, AnalysisOrchestrator
 from mispatch_finder.core.ports import (
-    VulnerabilityRepositoryPort,
+    VulnerabilityDataPort,
     RepositoryPort,
     MCPServerPort,
     LLMPort,

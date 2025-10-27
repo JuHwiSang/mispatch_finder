@@ -6,7 +6,7 @@ from typing import Dict
 from ..domain.models import AnalysisResult, Vulnerability
 from ..domain.prompt import build_prompt
 from ..ports import (
-    VulnerabilityRepositoryPort,
+    VulnerabilityDataPort,
     RepositoryPort,
     MCPServerPort,
     LLMPort,
@@ -27,7 +27,7 @@ class AnalysisOrchestrator:
     def __init__(
         self,
         *,
-        vuln_repo: VulnerabilityRepositoryPort,
+        vuln_repo: VulnerabilityDataPort,
         repo: RepositoryPort,
         mcp: MCPServerPort,
         llm: LLMPort,

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from mispatch_finder.core.ports import (
-    VulnerabilityRepositoryPort,
+    VulnerabilityDataPort,
     RepositoryPort,
     MCPServerPort,
     LLMPort,

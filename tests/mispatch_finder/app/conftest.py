@@ -30,7 +30,7 @@ def create_test_repo(tmp_path: Path) -> tuple[Path, str, str]:
 
 
 class MockVulnerabilityRepository:
-    """Mock implementation of VulnerabilityRepositoryPort."""
+    """Mock implementation of VulnerabilityDataPort."""
 
     def __init__(self, repo_url: str = "", commit: str = "", **kwargs):
         # Parse repo_url to extract owner/name

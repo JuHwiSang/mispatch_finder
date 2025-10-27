@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from .domain.models import Vulnerability
 
 
-class VulnerabilityRepositoryPort(Protocol):
+class VulnerabilityDataPort(Protocol):
     """Port for fetching vulnerability metadata and listing vulnerabilities.
 
     This port abstracts the cve_collector library, providing domain model conversion:

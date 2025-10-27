@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..ports import CachePort, VulnerabilityRepositoryPort
+from ..ports import CachePort, VulnerabilityDataPort
 
 
 class ClearCacheUseCase:
@@ -8,7 +8,7 @@ class ClearCacheUseCase:
         self,
         *,
         cache: CachePort,
-        vuln_repo: VulnerabilityRepositoryPort,
+        vuln_repo: VulnerabilityDataPort,
     ) -> None:
         self._cache = cache
         self._vuln_repo = vuln_repo
