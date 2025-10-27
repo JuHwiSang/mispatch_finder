@@ -170,6 +170,18 @@ class Repository:
    - Migrated tests to `tests/mispatch_finder/infra/llm_adapters/`
    - Reason: No need for separate module, simpler as infra component
 
+### Phase 7: Vulnerability Data Naming Clarity (2025-10)
+10. **Renamed VulnerabilityRepository to VulnerabilityDataAdapter**
+    - **Port**: `VulnerabilityRepositoryPort` → `VulnerabilityDataPort`
+    - **Adapter**: `VulnerabilityRepository` → `VulnerabilityDataAdapter`
+    - **File**: `vulnerability_repository.py` → `vulnerability_data.py`
+    - **Variables**: All `vuln_repo` → `vuln_data` (container, usecases, services, tests)
+    - **Rationale**:
+      - Clear distinction from `RepositoryPort` (git operations)
+      - "VulnerabilityData" emphasizes data fetching role vs. "Repository" pattern confusion
+      - Shorter variable name `vuln_data` improves readability
+    - **Impact**: Updated all layers (ports, infra, usecases, services, tests, docs)
+
 ## Key Files & Locations
 
 ### Application Layer
