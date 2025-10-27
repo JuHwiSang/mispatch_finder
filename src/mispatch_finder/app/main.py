@@ -33,7 +33,7 @@ def _get_default_config() -> dict[str, object]:
         "logs_dir": get_logs_dir(),
         "mcp_port": 18080,
         "prompt_diff_max_chars": get_prompt_diff_max_chars(),
-        "list_limit": 500,
+        "list_limit": 10,
         "ecosystem": get_ecosystem(),
         "default_filter_expr": get_default_filter_expr(),
     }
