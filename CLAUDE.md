@@ -247,11 +247,44 @@ Optional:
 - `ECOSYSTEM` - Default ecosystem filter (default: "npm")
 
 ### Code Style Guidelines
-1. **Imports**: Always at file top, never inside functions
-2. **Naming**: Clear action verbs for commands/functions
-3. **File names**: Match command/UseCase names (e.g., `analyze.py`, not `run_analysis.py`)
-4. **Dependencies**: Core → Ports ← Infra (strict dependency inversion)
-5. **Business Logic**: In `core/services/`, not in UseCases or Infra
+
+#### Python Version & Type Hints
+- **Target**: Python 3.13+ syntax
+- **Type hints**: Use modern built-in types, no legacy `typing` imports needed:
+  - ✅ `list[str]`, `dict[str, int]`, `tuple[int, str]`
+  - ❌ `List[str]`, `Dict[str, int]`, `Tuple[int, str]` (deprecated)
+  - ✅ `str | None` (union types with `|`)
+  - ❌ `Union[str, None]`, `Optional[str]` (use only when needed for compatibility)
+- **Exception**: Use `typing.Optional`, `typing.Union` only in Protocol definitions or when overload is needed
+
+#### Import Organization
+1. **Location**: Always at file top, never inside functions (no lazy imports unless absolutely necessary)
+2. **Order**: Follow standard Python convention:
+   - Standard library (`from __future__ import annotations`, `import os`, etc.)
+   - Third-party packages (`import typer`, `from dependency_injector import ...`)
+   - Local imports (`from ..core.ports import ...`, `from .config import ...`)
+3. **Format**: One import per line for readability
+
+#### Naming Conventions
+1. **Commands/Functions**: Clear action verbs (e.g., `analyze`, `list`, `clear`)
+2. **Files**: Match command/UseCase names (e.g., `analyze.py`, not `run_analysis.py`)
+3. **Variables**: Descriptive names
+   - `vuln_data` (not `vuln_repo` - clarity over brevity)
+   - `detailed` (boolean flag for full vs. simple output)
+4. **Ports vs Adapters**:
+   - Port interfaces: `*Port` suffix (e.g., `VulnerabilityDataPort`)
+   - Adapter implementations: `*Adapter` or descriptive name (e.g., `VulnerabilityDataAdapter`, `AnalysisLogger`)
+
+#### Architecture Rules
+1. **Dependency Direction**: Core → Ports ← Infra (strict dependency inversion)
+2. **Business Logic**: In `core/services/`, not in UseCases or Infra
+3. **UseCases**: Thin orchestration only, delegate to services
+4. **Ports**: Protocol definitions in `core/ports.py`, never concrete implementations
+
+#### API Design
+1. **Boolean flags**: Use explicit `detailed: bool = False` instead of multiple method names
+2. **Return types**: Use `Union` return types with proper overloads when return type depends on parameter
+3. **Filtering**: Pass filter expressions as strings (e.g., `filter_expr: str | None`) rather than complex objects
 
 ## External Dependencies
 
