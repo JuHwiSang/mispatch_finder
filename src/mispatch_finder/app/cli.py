@@ -12,7 +12,6 @@ import typer
 from .config import get_github_token, get_logs_dir, get_model_api_key
 from .main import analyze as analyze_main, clear, list_vulnerabilities, logs as logs_main
 from ..core.domain.models import Vulnerability
-from ..infra.logging import build_json_console_handler, build_json_file_handler
 from ..shared.log_summary import summarize_logs
 
 try:
@@ -33,38 +32,29 @@ def analyze(
     force_reclone: bool = typer.Option(False, '--force-reclone', help="Force re-clone repo cache"),
 ):
     """Analyze a single GHSA vulnerability for potential mispatches."""
-    # structured logging: file + console
+    # Configure basic logging for internal debugging
     level = logging._nameToLevel.get(log_level.upper(), logging.INFO)
-    root = logging.getLogger()
-    root.setLevel(level)
-    # remove existing handlers to avoid duplication in reruns
-    for h in list(root.handlers):
-        root.removeHandler(h)
+    logging.basicConfig(level=level, format='%(levelname)s: %(message)s', force=True)
+
+    # User-facing status messages via typer.echo
     logs_dir = get_logs_dir()
     log_file = logs_dir / f"{ghsa}.jsonl"
     if log_file.exists():
         log_file.unlink()
-    file_handler = build_json_file_handler(log_file, level=level)
-    console_handler = build_json_console_handler(level=level)
-    root.addHandler(file_handler)
-    root.addHandler(console_handler)
-    logging.getLogger(__name__).info("log_file", extra={"payload": {"type": "log_file", "path": str(log_file)}})
-    logging.getLogger(__name__).info("analysis_started", extra={"payload": {
-        "type": "analysis_started",
-        "ghsa": ghsa,
-        "provider": provider,
-        "model": model,
-    }})
+
+    typer.echo(f"Starting analysis: {ghsa}")
+    typer.echo(f"Provider: {provider}, Model: {model}")
+    typer.echo(f"Log file: {log_file}")
 
     # Resolve required secrets from env
     api_key = get_model_api_key()
     if not api_key:
-        typer.echo("API key required via MODEL_API_KEY (or OPENAI_API_KEY/ANTHROPIC_API_KEY)", err=True)
+        typer.echo("Error: API key required via MODEL_API_KEY (or OPENAI_API_KEY/ANTHROPIC_API_KEY)", err=True)
         raise typer.Exit(code=2)
 
     github_token = get_github_token()
     if not github_token:
-        typer.echo("GitHub token required via GITHUB_TOKEN", err=True)
+        typer.echo("Error: GitHub token required via GITHUB_TOKEN", err=True)
         raise typer.Exit(code=2)
 
     result = analyze_main(
