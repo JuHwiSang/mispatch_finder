@@ -5,16 +5,16 @@ import logging
 import sys
 import subprocess
 from pathlib import Path
+from typing import cast
 import os
 import re
 
 import typer
 
-from .main import analyze as analyze_main, list_ids, clear, logs as logs_main
+from .main import analyze as analyze_main, list_vulnerabilities, clear, logs as logs_main
 from .config import get_model_api_key, get_logs_dir, get_github_token
 from ..infra.logging import build_json_console_handler, build_json_file_handler
 from ..shared.log_summary import summarize_logs
-from cve_collector import detail
 
 try:
     from dotenv import load_dotenv
@@ -80,10 +80,54 @@ def analyze(
 
 
 @app.command(name="list")
-def list_command():
-    """List available GHSA identifiers from vulnerability database."""
-    items = list_ids()
-    typer.echo(json.dumps({"items": items}, ensure_ascii=False, indent=2))
+def list_command(
+    detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed vulnerability information"),
+    filter_expr: str | None = typer.Option(None, "--filter", "-f", help="Filter expression (use empty string '' to disable default filter)"),
+    no_filter: bool = typer.Option(False, "--no-filter", help="Disable default filter (show all vulnerabilities)"),
+):
+    """List available vulnerabilities from the database.
+
+    By default, shows only GHSA IDs with default filter applied (stars>=100, size<=10MB).
+    Use --detailed to include full metadata.
+    Use --filter to override the default filter (e.g., 'stars > 1000 and severity == "CRITICAL"').
+    Use --no-filter to disable filtering entirely and show all vulnerabilities.
+    """
+    # Handle filter logic: explicit filter > no_filter flag > default
+    if no_filter:
+        final_filter = ""
+    elif filter_expr is not None:
+        final_filter = filter_expr
+    else:
+        final_filter = None  # Use config default
+
+    result = list_vulnerabilities(detailed=detailed, filter_expr=final_filter)
+
+    if not detailed:
+        # Simple list of IDs
+        typer.echo(json.dumps({"items": result}, ensure_ascii=False, indent=2))
+    else:
+        # Detailed vulnerability information
+        from ..core.domain.models import Vulnerability
+        vulns = cast(list[Vulnerability], result)
+
+        # Convert to JSON-serializable format
+        items = []
+        for v in vulns:
+            items.append({
+                "ghsa_id": v.ghsa_id,
+                "cve_id": v.cve_id,
+                "severity": v.severity,
+                "summary": v.summary,
+                "repository": {
+                    "owner": v.repository.owner,
+                    "name": v.repository.name,
+                    "ecosystem": v.repository.ecosystem,
+                    "stars": v.repository.star_count,
+                    "size_kb": v.repository.size_kb,
+                },
+                "commit_hash": v.commit_hash,
+            })
+        typer.echo(json.dumps({"count": len(items), "vulnerabilities": items}, ensure_ascii=False, indent=2))
 
 
 
@@ -111,25 +155,49 @@ def batch(
     provider: str | None = typer.Option(None, "--provider", case_sensitive=False, help="LLM provider (optional)"),
     model: str | None = typer.Option(None, "--model", help="Model name (optional)"),
     limit: int | None = typer.Option(None, "--limit", "-n", help="Max number of successful analyses to run"),
+    filter_expr: str | None = typer.Option(None, "--filter", "-f", help="Filter expression (overrides default)"),
+    no_filter: bool = typer.Option(False, "--no-filter", help="Disable default filter"),
 ):
-    """Run batch analysis for all pending GHSA identifiers."""
-    items = list_ids()
+    """Run batch analysis for pending vulnerabilities.
+
+    By default, applies filter (stars>=100, size<=10MB) to focus on relevant repos.
+    Use --filter to specify custom criteria or --no-filter to process all vulnerabilities.
+
+    Examples:
+      mispatch-finder batch --limit 10                           # Process 10 filtered vulnerabilities
+      mispatch-finder batch --filter "severity == 'CRITICAL'"   # Only critical severity
+      mispatch-finder batch --no-filter --limit 100              # Process all, up to 100
+    """
+    # Handle filter logic
+    if no_filter:
+        final_filter = ""
+    elif filter_expr is not None:
+        final_filter = filter_expr
+    else:
+        final_filter = None  # Use config default
+
+    # Fetch all vulnerabilities with detailed metadata (efficient single call)
+    from ..core.domain.models import Vulnerability
+    typer.echo("Fetching vulnerability list with metadata...")
+    result = list_vulnerabilities(detailed=True, filter_expr=final_filter)
+    vulns = cast(list[Vulnerability], result)
 
     logs_dir = get_logs_dir()
     summaries = summarize_logs(logs_dir, verbose=False)
 
     # Filter out already completed IDs
     candidates = []
-    for ghsa in items:
+    for vuln in vulns:
+        ghsa = vuln.ghsa_id
         s = summaries.get(ghsa)
         if s is None or not s.done:
-            candidates.append(ghsa)
+            candidates.append(vuln)
 
     if not candidates:
         typer.echo("No pending GHSA IDs to run.")
         return
 
-    typer.echo(f"Found {len(candidates)} pending GHSA IDs. Starting validation and batch analysis...")
+    typer.echo(f"Found {len(candidates)} pending vulnerabilities. Starting batch analysis...")
     if limit:
         typer.echo(f"Target: {limit} successful runs")
 
@@ -138,32 +206,13 @@ def batch(
     processed = 0
     skipped = 0
 
-    for candidate_idx, ghsa in enumerate(candidates, start=1):
+    for candidate_idx, vuln in enumerate(candidates, start=1):
         # Check if we've reached the limit
         if limit and processed >= limit:
             break
 
-        # Lazy validation: check metadata only when needed
-        typer.echo(f"[{candidate_idx}/{len(candidates)}] Validating {ghsa}...", nl=False)
-        vuln = detail(ghsa)
-
-        if vuln is None:
-            typer.echo(f" ⊘ Skip (metadata not found)")
-            skipped += 1
-            continue
-
-        if not vuln.repositories or len(vuln.repositories) == 0:
-            typer.echo(f" ⊘ Skip (no repository)")
-            skipped += 1
-            continue
-
-        if not vuln.commits or len(vuln.commits) == 0:
-            typer.echo(f" ⊘ Skip (no commits)")
-            skipped += 1
-            continue
-
-        # Valid metadata - run analysis
-        typer.echo(f" ✓ Valid, running...")
+        ghsa = vuln.ghsa_id
+        typer.echo(f"[{candidate_idx}/{len(candidates)}] {ghsa} - {vuln.repository.owner}/{vuln.repository.name}")
 
         # Status line with optional provider/model context
         parts = [f"  Running {ghsa}"]
@@ -178,7 +227,7 @@ def batch(
             sys.executable,
             "-m",
             "mispatch_finder.app.cli",
-            "analyze",  # Changed from "run" to "analyze"
+            "analyze",
             ghsa,
         ]
         if provider:

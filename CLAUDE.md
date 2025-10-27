@@ -59,19 +59,23 @@ Command format: `mispatch-finder <command> [options]`
    - UseCase: `AnalyzeUseCase` ([core/usecases/analyze.py](src/mispatch_finder/core/usecases/analyze.py))
    - Facade: `analyze()` ([app/main.py:81](src/mispatch_finder/app/main.py#L81))
 
-2. **`list`** - List available GHSA IDs
+2. **`list`** - List available vulnerabilities
    ```bash
-   mispatch-finder list
+   mispatch-finder list                                    # List IDs (default filter applied)
+   mispatch-finder list --detailed                        # List with full metadata
+   mispatch-finder list --filter "stars > 1000"          # Custom filter
+   mispatch-finder list --no-filter                       # Disable filter (all vulnerabilities)
    ```
    - UseCase: `ListUseCase` ([core/usecases/list.py](src/mispatch_finder/core/usecases/list.py))
-   - Facade: `list_ids()` ([app/main.py:97](src/mispatch_finder/app/main.py#L97))
+   - Facade: `list_vulnerabilities()` ([app/main.py](src/mispatch_finder/app/main.py))
+   - **Default filter**: `stars >= 100 and size <= 10MB` (configurable via `MISPATCH_FILTER_EXPR`)
 
 3. **`clear`** - Clear all caches
    ```bash
    mispatch-finder clear
    ```
    - UseCase: `ClearCacheUseCase` ([core/usecases/clear_cache.py](src/mispatch_finder/core/usecases/clear_cache.py))
-   - Facade: `clear()` ([app/main.py:104](src/mispatch_finder/app/main.py#L104))
+   - Facade: `clear()` ([app/main.py](src/mispatch_finder/app/main.py))
 
 4. **`logs [GHSA-ID]`** - Show analysis logs
    ```bash
@@ -79,12 +83,16 @@ Command format: `mispatch-finder <command> [options]`
    mispatch-finder logs GHSA-xxxx-xxxx-xxxx --verbose  # Detailed logs for specific GHSA
    ```
    - UseCase: `LogsUseCase` ([core/usecases/logs.py](src/mispatch_finder/core/usecases/logs.py))
-   - Facade: `logs()` ([app/main.py:111](src/mispatch_finder/app/main.py#L111))
+   - Facade: `logs()` ([app/main.py](src/mispatch_finder/app/main.py))
 
 5. **`batch`** - Run batch analysis
    ```bash
    mispatch-finder batch --limit 10 --provider openai --model gpt-4
+   mispatch-finder batch --filter "severity == 'CRITICAL'" --limit 5
+   mispatch-finder batch --no-filter --limit 100
    ```
+   - Applies default filter (stars >= 100, size <= 10MB) unless overridden
+   - Use `--filter` to override or `--no-filter` to disable
 
 ## Core Domain Models
 
@@ -241,10 +249,10 @@ Required:
 - `MODEL_API_KEY` or `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - LLM API key
 
 Optional:
-- `CACHE_DIR` - Cache directory (default: platform-specific)
-- `RESULTS_DIR` - Results output directory
-- `LOGS_DIR` - Log storage directory
-- `ECOSYSTEM` - Default ecosystem filter (default: "npm")
+- `MISPATCH_HOME` - Base directory for all data (default: platform-specific cache dir)
+- `MISPATCH_ECOSYSTEM` - Default ecosystem filter (default: "npm")
+- `MISPATCH_FILTER_EXPR` - Default vulnerability filter expression (default: "stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000")
+- `MISPATCH_DIFF_MAX_CHARS` - Max diff characters in prompt (default: 200,000)
 
 ### Code Style Guidelines
 

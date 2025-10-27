@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Callable, Concatenate, Dict, ParamSpec, TypeVar
+from typing import Callable, Concatenate, Dict, ParamSpec, TypeVar, Union
 
 from .config import (
     get_cache_dir,
@@ -11,8 +11,10 @@ from .config import (
     get_model_api_key,
     get_prompt_diff_max_chars,
     get_results_dir,
+    get_default_filter_expr,
 )
 from .container import Container
+from ..core.domain.models import Vulnerability
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -32,6 +34,7 @@ def _get_default_config() -> dict:
         "prompt_diff_max_chars": get_prompt_diff_max_chars(),
         "list_limit": 500,
         "ecosystem": get_ecosystem(),
+        "default_filter_expr": get_default_filter_expr(),
     }
 
 
@@ -94,9 +97,66 @@ def analyze(
 
 
 @with_container
+def list_vulnerabilities(
+    container: Container,
+    detailed: bool = False,
+    filter_expr: str | None = None,
+    **kwargs
+) -> Union[list[str], list[Vulnerability]]:
+    """List vulnerabilities with optional detailed metadata.
+
+    Args:
+        detailed: If True, return full Vulnerability objects; if False, return GHSA IDs only
+        filter_expr: Optional asteval filter expression (None = use default from config)
+
+    Returns:
+        list[str] if detailed=False, list[Vulnerability] if detailed=True
+    """
+    # Create use case with custom parameters
+    from ..core.usecases.list import ListUseCase
+
+    limit: int = int(container.config.list_limit())
+    ecosystem: str = str(container.config.ecosystem())
+
+    # Handle filter: None = use default, empty string = no filter, otherwise = custom filter
+    actual_filter: str | None
+    if filter_expr is None:
+        actual_filter = str(container.config.default_filter_expr())
+    elif filter_expr == "":
+        actual_filter = None  # No filter
+    else:
+        actual_filter = filter_expr
+
+    uc = ListUseCase(
+        vuln_data=container.vuln_data(),
+        limit=limit,
+        ecosystem=ecosystem,
+        detailed=detailed,
+        filter_expr=actual_filter,
+    )
+    return uc.execute()
+
+
+@with_container
 def list_ids(container: Container, **kwargs) -> list[str]:
-    """List available GHSA IDs."""
-    uc = container.list_uc()
+    """List available GHSA IDs without default filter (backward compatibility).
+
+    Note: This function does NOT apply the default filter to maintain backward compatibility.
+    Use list_vulnerabilities() for filtered results.
+    """
+    from ..core.usecases.list import ListUseCase
+
+    limit: int = int(container.config.list_limit())
+    ecosystem: str = str(container.config.ecosystem())
+
+    # Explicitly no filter for backward compatibility
+    uc = ListUseCase(
+        vuln_data=container.vuln_data(),
+        limit=limit,
+        ecosystem=ecosystem,
+        detailed=False,
+        filter_expr=None,
+    )
     return uc.execute()
 
 

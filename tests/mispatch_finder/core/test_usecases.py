@@ -31,9 +31,29 @@ class FakeVulnRepo:
             commit_hash="abc123",
         )
 
-    def list_ids(self, limit: int, ecosystem: str = "npm") -> list[str]:
-        self.listed.append((limit, ecosystem))
-        return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
+    def list_vulnerabilities(self, limit: int, ecosystem: str = "npm", detailed: bool = False, filter_expr: Optional[str] = None):
+        self.listed.append((limit, ecosystem, detailed, filter_expr))
+        if not detailed:
+            return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
+        else:
+            return [
+                Vulnerability(
+                    ghsa_id="GHSA-1111-2222-3333",
+                    repository=Repository(owner="test", name="repo1", ecosystem="npm", star_count=100, size_kb=500),
+                    commit_hash="abc123",
+                    cve_id="CVE-2023-1111",
+                    summary="Test vulnerability 1",
+                    severity="HIGH",
+                ),
+                Vulnerability(
+                    ghsa_id="GHSA-4444-5555-6666",
+                    repository=Repository(owner="test", name="repo2", ecosystem="npm", star_count=200, size_kb=1000),
+                    commit_hash="def456",
+                    cve_id="CVE-2023-4444",
+                    summary="Test vulnerability 2",
+                    severity="CRITICAL",
+                ),
+            ]
 
     def clear_cache(self, prefix: Optional[str] = None) -> None:
         self.cache_cleared_with.append(prefix)
@@ -150,24 +170,62 @@ def test_run_analysis_usecase_executes_full_flow():
     assert mcp.cleanup_called
 
 
-def test_list_ghsa_usecase():
+def test_list_usecase_ids_only():
+    """Test listing vulnerabilities with detailed=False (IDs only)."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data, limit=500, ecosystem="npm")
+    uc = ListUseCase(vuln_data=vuln_data, limit=500, ecosystem="npm", detailed=False)
 
     result = uc.execute()
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
-    assert vuln_data.listed == [(500, "npm")]
+    assert vuln_data.listed == [(500, "npm", False, None)]
 
 
-def test_list_ghsa_usecase_custom_ecosystem():
+def test_list_usecase_custom_ecosystem():
+    """Test listing with custom ecosystem."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data, limit=100, ecosystem="pypi")
+    uc = ListUseCase(vuln_data=vuln_data, limit=100, ecosystem="pypi", detailed=False)
 
     result = uc.execute()
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
-    assert vuln_data.listed == [(100, "pypi")]
+    assert vuln_data.listed == [(100, "pypi", False, None)]
+
+
+def test_list_usecase_detailed():
+    """Test listing vulnerabilities with detailed=True (full metadata)."""
+    vuln_data = FakeVulnRepo()
+    uc = ListUseCase(vuln_data=vuln_data, limit=10, ecosystem="npm", detailed=True)
+
+    result = uc.execute()
+
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert all(isinstance(v, Vulnerability) for v in result)
+    assert result[0].ghsa_id == "GHSA-1111-2222-3333"
+    assert result[0].repository.owner == "test"
+    assert result[0].repository.name == "repo1"
+    assert result[0].severity == "HIGH"
+    assert result[1].ghsa_id == "GHSA-4444-5555-6666"
+    assert result[1].severity == "CRITICAL"
+    assert vuln_data.listed == [(10, "npm", True, None)]
+
+
+def test_list_usecase_with_filter():
+    """Test listing with filter expression."""
+    vuln_data = FakeVulnRepo()
+    uc = ListUseCase(
+        vuln_data=vuln_data,
+        limit=10,
+        ecosystem="npm",
+        detailed=True,
+        filter_expr="stars > 1000"
+    )
+
+    result = uc.execute()
+
+    assert isinstance(result, list)
+    assert vuln_data.listed == [(10, "npm", True, "stars > 1000")]
 
 
 def test_clear_cache_usecase():

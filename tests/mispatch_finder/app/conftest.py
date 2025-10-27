@@ -50,8 +50,29 @@ class MockVulnerabilityRepository:
             commit_hash=self._commit,
         )
 
-    def list_ids(self, limit: int, ecosystem: str = "npm") -> list[str]:
-        return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
+    def list_vulnerabilities(self, limit: int, ecosystem: str = "npm", detailed: bool = False, filter_expr: str | None = None):
+        """Mock list_vulnerabilities implementation."""
+        if not detailed:
+            return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
+        else:
+            return [
+                Vulnerability(
+                    ghsa_id="GHSA-1111-2222-3333",
+                    repository=Repository(owner=self._owner, name=self._name, ecosystem="npm", star_count=100, size_kb=500),
+                    commit_hash=self._commit,
+                    cve_id="CVE-2023-1111",
+                    summary="Test vulnerability 1",
+                    severity="HIGH",
+                ),
+                Vulnerability(
+                    ghsa_id="GHSA-4444-5555-6666",
+                    repository=Repository(owner=self._owner, name=self._name, ecosystem="npm", star_count=200, size_kb=1000),
+                    commit_hash=self._commit,
+                    cve_id="CVE-2023-4444",
+                    summary="Test vulnerability 2",
+                    severity="CRITICAL",
+                ),
+            ]
 
     def clear_cache(self, prefix: str | None = None) -> None:
         pass

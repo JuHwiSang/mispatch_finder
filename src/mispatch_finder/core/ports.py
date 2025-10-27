@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from pathlib import Path
-from typing import Protocol, Optional, Dict, Any
+from typing import Protocol, Optional, Dict, Any, Union, overload
 from dataclasses import dataclass
 
 from .domain.models import Vulnerability
@@ -13,7 +13,7 @@ class VulnerabilityDataPort(Protocol):
 
     This port abstracts the cve_collector library, providing domain model conversion:
     - cve_collector.detail(id) → domain.Vulnerability
-    - cve_collector.list_vulnerabilities() → list[domain.Vulnerability]
+    - cve_collector.list_vulnerabilities() → list[domain.Vulnerability] or list[str]
     - cve_collector.clear_cache(prefix) → cache management
     """
 
@@ -28,8 +28,46 @@ class VulnerabilityDataPort(Protocol):
         """
         ...
 
-    def list_ids(self, limit: int, ecosystem: str = "npm") -> list[str]:
-        """List available GHSA identifiers (ID only, no metadata)."""
+    @overload
+    def list_vulnerabilities(
+        self,
+        limit: int,
+        ecosystem: str = "npm",
+        detailed: bool = False,
+        filter_expr: Optional[str] = None,
+    ) -> list[str]: ...
+
+    @overload
+    def list_vulnerabilities(
+        self,
+        limit: int,
+        ecosystem: str = "npm",
+        detailed: bool = True,
+        filter_expr: Optional[str] = None,
+    ) -> list[Vulnerability]: ...
+
+    def list_vulnerabilities(
+        self,
+        limit: int,
+        ecosystem: str = "npm",
+        detailed: bool = False,
+        filter_expr: Optional[str] = None,
+    ) -> Union[list[str], list[Vulnerability]]:
+        """List vulnerabilities with optional detailed metadata.
+
+        Args:
+            limit: Maximum number of items to return
+            ecosystem: Ecosystem to filter by (npm, pypi, go, etc.)
+            detailed: If True, return full Vulnerability objects; if False, return GHSA IDs only
+            filter_expr: Optional asteval filter expression (e.g., "stars > 1000 and severity == 'CRITICAL'")
+                        Available variables: ghsa_id, cve_id, has_cve, severity, summary, description,
+                        published_at, modified_at, ecosystem, repo_slug, stars, size_bytes,
+                        repo_count, commit_count, poc_count
+
+        Returns:
+            list[str] if detailed=False (GHSA IDs only)
+            list[Vulnerability] if detailed=True (full domain models)
+        """
         ...
 
     def clear_cache(self, prefix: Optional[str] = None) -> None:

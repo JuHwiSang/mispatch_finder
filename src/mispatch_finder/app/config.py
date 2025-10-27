@@ -89,3 +89,22 @@ def get_ecosystem(env_var: str = "MISPATCH_ECOSYSTEM") -> str:
     return os.environ.get(env_var, "npm")
 
 
+def get_default_filter_expr(env_var: str = "MISPATCH_FILTER_EXPR") -> str:
+    """Get the default filter expression for vulnerability listing.
+
+    Filter uses asteval syntax with available variables:
+    - ghsa_id, cve_id, has_cve, severity, summary, description
+    - published_at, modified_at, ecosystem, repo_slug
+    - stars, size_bytes, repo_count, commit_count, poc_count
+
+    Note: Many fields can be None, so use 'is not None' checks before comparisons.
+
+    Default: "stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000"
+    (Repositories with ≥100 stars and ≤10MB size)
+    """
+    return os.environ.get(
+        env_var,
+        "stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000"
+    )
+
+
