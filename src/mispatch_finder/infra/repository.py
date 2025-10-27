@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from git import Repo
 
@@ -19,7 +18,7 @@ class Repository:
         repo_url: str,
         commit: str,
         force_reclone: bool,
-    ) -> tuple[Optional[Path], Optional[Path]]:
+    ) -> tuple[Path | None, Path | None]:
         """Clone repo and prepare current/previous workdirs."""
         base = self._ensure_repo(repo_url, force_reclone)
         repo = Repo(base)

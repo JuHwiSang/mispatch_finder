@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import List, Optional, Dict
-
 from openai import OpenAI
 from openai.types.responses.tool_param import ToolParam
 
-from .types import Toolset, LLMResponse, TokenUsage
+from .types import LLMResponse, TokenUsage, Toolset
 
 
 class OpenAIHostedMCPAdapter:
@@ -22,14 +20,14 @@ class OpenAIHostedMCPAdapter:
     def run(
         self,
         prompt: str,
-        toolsets: List[Toolset],
+        toolsets: list[Toolset],
         *,
         max_output_tokens: int = 800,
-        request_headers: Optional[Dict[str, str]] = None,
+        request_headers: dict[str, str] | None = None,
     ) -> LLMResponse:
         request_headers = request_headers or {}
 
-        tools: List[ToolParam] = []
+        tools: list[ToolParam] = []
         for toolset in toolsets:
             headers = dict(toolset.headers)
             if toolset.bearer_token and "Authorization" not in headers:

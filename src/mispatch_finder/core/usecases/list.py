@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Optional
-
 from ..ports import VulnerabilityDataPort
-from ..domain.models import Vulnerability
 
 
 class ListUseCase:
@@ -14,7 +11,7 @@ class ListUseCase:
         limit: int,
         ecosystem: str = "npm",
         detailed: bool = False,
-        filter_expr: Optional[str] = None,
+        filter_expr: str | None = None,
     ) -> None:
         self._vuln_data = vuln_data
         self._limit = limit

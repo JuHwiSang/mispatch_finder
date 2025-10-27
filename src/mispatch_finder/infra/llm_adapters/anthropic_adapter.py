@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import List, Optional, Dict
-
 import anthropic
 from anthropic.types.beta import BetaRequestMCPServerURLDefinitionParam
 
-from .types import Toolset, LLMResponse, TokenUsage
+from .types import LLMResponse, TokenUsage, Toolset
 
 
 class AnthropicHostedMCPAdapter:
@@ -23,12 +21,12 @@ class AnthropicHostedMCPAdapter:
     def run(
         self,
         prompt: str,
-        toolsets: List[Toolset],
+        toolsets: list[Toolset],
         *,
         max_output_tokens: int = 800,
-        request_headers: Optional[Dict[str, str]] = None,
+        request_headers: dict[str, str] | None = None,
     ) -> LLMResponse:
-        mcp_servers: List[BetaRequestMCPServerURLDefinitionParam] = []
+        mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] = []
         for toolset in toolsets:
             server: BetaRequestMCPServerURLDefinitionParam = {
                 "type": "url",

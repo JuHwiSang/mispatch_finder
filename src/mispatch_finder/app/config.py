@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from platformdirs import PlatformDirs
 
@@ -51,11 +50,11 @@ def get_logs_dir() -> Path:
     return path
 
 
-def get_github_token(env_var: str = "GITHUB_TOKEN") -> Optional[str]:
+def get_github_token(env_var: str = "GITHUB_TOKEN") -> str | None:
     return os.environ.get(env_var)
 
 
-def get_model_api_key(env_var: str = "MODEL_API_KEY") -> Optional[str]:
+def get_model_api_key(env_var: str = "MODEL_API_KEY") -> str | None:
     """Return the unified model API key from env.
 
     Primary: MODEL_API_KEY

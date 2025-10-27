@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     # Type-only import to align exactly with OpenAI SDK schema
@@ -22,20 +22,20 @@ class Toolset:
 
     label: str
     server_url: str
-    bearer_token: Optional[str] = None
-    headers: Dict[str, str] = field(default_factory=dict)
-    allowed_tools: Optional[List[str]] = None
-    require_approval: Optional["McpRequireApproval"] = "never"
+    bearer_token: str | None = None
+    headers: dict[str, str] = field(default_factory=dict)
+    allowed_tools: list[str] | None = None
+    require_approval: "McpRequireApproval" | None = "never"
 
 
 @dataclass
 class TokenUsage:
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 @dataclass
 class LLMResponse:
     text: str
-    usage: Optional[TokenUsage] = None
+    usage: TokenUsage | None = None

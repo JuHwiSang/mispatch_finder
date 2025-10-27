@@ -1,20 +1,19 @@
 from __future__ import annotations
 
+import logging
 import re
 import threading
-import logging
 from pathlib import Path
-from typing import Optional
 
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 from fastmcp.server.middleware.logging import LoggingMiddleware
 from repo_read_mcp import make_mcp_server as make_repo_mcp
 
-from ..core.ports import MCPServerPort, MCPServerContext
-from .mcp.wiretap_logging import WiretapLoggingMiddleware
-from .mcp.tunnel import Tunnel
+from ..core.ports import MCPServerContext, MCPServerPort
 from ..shared.list_tools import list_tools
+from .mcp.tunnel import Tunnel
+from .mcp.wiretap_logging import WiretapLoggingMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +25,8 @@ class MCPServer:
     def start_servers(
         self,
         *,
-        current_workdir: Optional[Path],
-        previous_workdir: Optional[Path],
+        current_workdir: Path | None,
+        previous_workdir: Path | None,
         auth_token: str,
     ) -> MCPServerContext:
         # 1) Create child repo servers

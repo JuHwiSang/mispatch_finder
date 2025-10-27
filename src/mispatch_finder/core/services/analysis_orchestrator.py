@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Dict
 
 from ..domain.models import AnalysisResult, Vulnerability
 from ..domain.prompt import build_prompt
 from ..ports import (
-    VulnerabilityDataPort,
-    RepositoryPort,
-    MCPServerPort,
     LLMPort,
-    TokenGeneratorPort,
     LoggerPort,
+    MCPServerPort,
+    RepositoryPort,
+    TokenGeneratorPort,
+    VulnerabilityDataPort,
 )
 from .diff_service import DiffService
 from .json_extractor import JsonExtractor
@@ -45,7 +44,7 @@ class AnalysisOrchestrator:
         self._diff_service = diff_service
         self._json_extractor = json_extractor
 
-    def analyze(self, *, ghsa: str, force_reclone: bool = False) -> Dict[str, object]:
+    def analyze(self, *, ghsa: str, force_reclone: bool = False) -> dict[str, object]:
         """Execute complete analysis workflow for a GHSA.
 
         Args:

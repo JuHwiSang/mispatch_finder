@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-from .types import Toolset, LLMResponse
+from .types import LLMResponse, Toolset
 
 
 @runtime_checkable
@@ -12,10 +12,10 @@ class LLMHostedMCPAdapter(Protocol):
     def run(
         self,
         prompt: str,
-        toolsets: List[Toolset],
+        toolsets: list[Toolset],
         *,
         max_output_tokens: int = 800,
-        request_headers: Optional[Dict[str, str]] = None,
+        request_headers: dict[str, str] | None = None,
     ) -> LLMResponse:
         """Run a request with MCP access and return normalized text + token usage."""
         raise NotImplementedError

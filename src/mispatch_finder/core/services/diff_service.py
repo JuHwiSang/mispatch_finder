@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 from ..ports import RepositoryPort
 
@@ -30,7 +29,7 @@ class DiffService:
     def generate_diff(
         self,
         *,
-        workdir: Optional[Path],
+        workdir: Path | None,
         commit: str,
     ) -> DiffResult:
         """Generate diff for a commit with optional truncation.

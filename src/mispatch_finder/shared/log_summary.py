@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List
 
 
 @dataclass
@@ -16,7 +15,7 @@ class RunSummary:
     model: str = ""
     run_date: str = ""
     mcp_total_calls: int = 0
-    mcp_tool_counts: Dict[str, int] = field(default_factory=dict)
+    mcp_tool_counts: dict[str, int] = field(default_factory=dict)
     total_tokens: int = 0
     done: bool = False
 
@@ -130,7 +129,7 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
     model = ""
     run_date = ""
     mcp_total_calls = 0
-    mcp_tool_counts: Dict[str, int] = {}
+    mcp_tool_counts: dict[str, int] = {}
     total_tokens = 0
     done = False
 
@@ -231,30 +230,30 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
     )
 
 
-def summarize_logs(logs_dir: Path, verbose: bool = False) -> Dict[str, RunSummary]:
+def summarize_logs(logs_dir: Path, verbose: bool = False) -> dict[str, RunSummary]:
     try:
         files = sorted([p for p in logs_dir.glob("*.jsonl") if p.is_file()])
     except FileNotFoundError:
         files = []
 
     # Parse, then sort by run_date descending (empty dates last)
-    items: List[RunSummary] = []
+    items: list[RunSummary] = []
     for fp in files:
         items.append(parse_log_file(fp, verbose=verbose))
 
     items.sort(key=lambda s: s.run_date or "", reverse=True)
 
-    summaries: Dict[str, RunSummary] = {}
+    summaries: dict[str, RunSummary] = {}
     for s in items:
         summaries[s.ghsa_id] = s
     return summaries
 
 
-def format_summary_table(summaries: Dict[str, RunSummary], verbose: bool = False) -> List[str]:
+def format_summary_table(summaries: dict[str, RunSummary], verbose: bool = False) -> list[str]:
     if not summaries:
         return ["No logs found."]
 
-    rows: List[tuple[str, str, str, str, str, str, str, str]] = []
+    rows: list[tuple[str, str, str, str, str, str, str, str]] = []
     for ghsa_id, s in summaries.items():
         mcp_details = ""
         if verbose and s.mcp_tool_counts:
@@ -290,7 +289,7 @@ def format_summary_table(summaries: Dict[str, RunSummary], verbose: bool = False
     if verbose:
         header_parts.append('MCP Details')
 
-    lines: List[str] = ["  ".join(header_parts)]
+    lines: list[str] = ["  ".join(header_parts)]
     for ghsa_id, current_risk, patch_risk, model, run_date, mcp_calls, tokens, mcp_details in rows:
         parts = [
             ghsa_id.rjust(ghsa_w),
@@ -307,9 +306,9 @@ def format_summary_table(summaries: Dict[str, RunSummary], verbose: bool = False
     return lines
 
 
-def format_single_summary(details: LogDetails) -> List[str]:
+def format_single_summary(details: LogDetails) -> list[str]:
     """Render a concise multi-line summary for a single run."""
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append(f"GHSA:   {details.ghsa_id}")
     if details.repo_url:
         lines.append(f"Repo:   {details.repo_url}")

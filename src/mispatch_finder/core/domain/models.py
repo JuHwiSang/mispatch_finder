@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 @dataclass(frozen=True)
@@ -14,9 +13,9 @@ class Repository:
     """
     owner: str
     name: str
-    ecosystem: Optional[str] = None  # e.g., "npm", "pypi", "go"
-    star_count: Optional[int] = None
-    size_kb: Optional[int] = None  # Repository size in KB
+    ecosystem: str | None = None  # e.g., "npm", "pypi", "go"
+    star_count: int | None = None
+    size_kb: int | None = None  # Repository size in KB
 
     @property
     def slug(self) -> str:
@@ -41,18 +40,18 @@ class Vulnerability:
     commit_hash: str
 
     # Optional enrichment data
-    cve_id: Optional[str] = None
-    summary: Optional[str] = None
-    severity: Optional[str] = None  # e.g., "CRITICAL", "HIGH", "MEDIUM", "LOW"
+    cve_id: str | None = None
+    summary: str | None = None
+    severity: str | None = None  # e.g., "CRITICAL", "HIGH", "MEDIUM", "LOW"
 
 
 @dataclass
 class RepoContext:
     repo_url: str
-    workdir_current: Optional[Path]
-    workdir_previous: Optional[Path]
+    workdir_current: Path | None
+    workdir_previous: Path | None
     commit: str
-    parent_commit: Optional[str]
+    parent_commit: str | None
 
 
 @dataclass
@@ -60,11 +59,11 @@ class AnalysisResult:
     ghsa: str
     provider: str
     model: str
-    verdict: Optional[str]
-    severity: Optional[str]
-    rationale: Optional[str]
-    evidence: Optional[List[Dict[str, object]]]
-    poc_idea: Optional[str]
-    raw_text: Optional[str]
+    verdict: str | None
+    severity: str | None
+    rationale: str | None
+    evidence: list[dict[str, object]] | None
+    poc_idea: str | None
+    raw_text: str | None
 
 

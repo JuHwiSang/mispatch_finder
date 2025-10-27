@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import os
 import logging
+import os
+import re
 import shutil
 import subprocess
 import threading
 import time
-import re
-from typing import Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class Tunnel:
         username: str = "nokey",
         remote_port: int = 80,
         keepalive_interval: int = 30,
-        known_hosts: Optional[str] = None,
+        known_hosts: str | None = None,
     ) -> None:
         self.remote_host = remote_host
         self.username = username
@@ -33,9 +32,9 @@ class Tunnel:
         self.keepalive_interval = keepalive_interval
         self.known_hosts = known_hosts
 
-        self.public_url: Optional[str] = None
-        self._proc: Optional[subprocess.Popen] = None
-        self._reader: Optional[threading.Thread] = None
+        self.public_url: str | None = None
+        self._proc: subprocess.Popen | None = None
+        self._reader: threading.Thread | None = None
         self._stop_event = threading.Event()
 
     @staticmethod
@@ -45,7 +44,7 @@ class Tunnel:
                 "`ssh` not found. Please install OpenSSH client and ensure `ssh` is in PATH."
             )
 
-    def _build_cmd(self, host: str, port: int) -> List[str]:
+    def _build_cmd(self, host: str, port: int) -> list[str]:
         # Force non-interactive, robust behavior across environments
         #  - BatchMode=yes: never prompt for passwords/confirmation
         #  - StrictHostKeyChecking=no: accept host key without prompt

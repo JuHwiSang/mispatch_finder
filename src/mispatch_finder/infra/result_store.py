@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from ..core.ports import ResultStorePort
 
@@ -15,7 +14,7 @@ class ResultStore:
         fp = self._results_dir / f"{ghsa}.json"
         fp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    def load(self, ghsa: str) -> Optional[dict]:
+    def load(self, ghsa: str) -> dict | None:
         fp = self._results_dir / f"{ghsa}.json"
         if not fp.exists():
             return None

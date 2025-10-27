@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict
-
 from ..ports import ResultStorePort
 from ..services import AnalysisOrchestrator
 
@@ -22,7 +20,7 @@ class AnalyzeUseCase:
         self._orchestrator = orchestrator
         self._store = store
 
-    def execute(self, *, ghsa: str, force_reclone: bool = False) -> Dict[str, object]:
+    def execute(self, *, ghsa: str, force_reclone: bool = False) -> dict[str, object]:
         """Execute analysis workflow.
 
         Args:

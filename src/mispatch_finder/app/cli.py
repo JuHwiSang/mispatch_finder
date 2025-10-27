@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 import subprocess
+import sys
 from pathlib import Path
 from typing import cast
-import os
-import re
 
 import typer
 
-from .main import analyze as analyze_main, list_vulnerabilities, clear, logs as logs_main
-from .config import get_model_api_key, get_logs_dir, get_github_token
+from .config import get_github_token, get_logs_dir, get_model_api_key
+from .main import analyze as analyze_main, clear, list_vulnerabilities, logs as logs_main
+from ..core.domain.models import Vulnerability
 from ..infra.logging import build_json_console_handler, build_json_file_handler
 from ..shared.log_summary import summarize_logs
 
@@ -107,7 +106,6 @@ def list_command(
         typer.echo(json.dumps({"items": result}, ensure_ascii=False, indent=2))
     else:
         # Detailed vulnerability information
-        from ..core.domain.models import Vulnerability
         vulns = cast(list[Vulnerability], result)
 
         # Convert to JSON-serializable format
@@ -177,7 +175,6 @@ def batch(
         final_filter = None  # Use config default
 
     # Fetch all vulnerabilities with detailed metadata (efficient single call)
-    from ..core.domain.models import Vulnerability
     typer.echo("Fetching vulnerability list with metadata...")
     result = list_vulnerabilities(detailed=True, filter_expr=final_filter)
     vulns = cast(list[Vulnerability], result)

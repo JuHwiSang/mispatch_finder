@@ -1,6 +1,11 @@
+from __future__ import annotations
+
+from dataclasses import asdict
+
+
 def to_jsonable(obj):
     """Convert various Python objects to JSON-serializable format.
-    
+
     Handles:
     - Basic types (str, int, float, bool, None)
     - Collections (list, tuple, dict)
@@ -9,10 +14,10 @@ def to_jsonable(obj):
     - Bytes/Bytearray
     - Objects with to_jsonable method
     - Objects with __dict__
-    
+
     Args:
         obj: Any Python object
-        
+
     Returns:
         A JSON-serializable version of the object
     """
@@ -29,7 +34,6 @@ def to_jsonable(obj):
     elif hasattr(obj, 'dict'):  # Pydantic v1
         return to_jsonable(obj.dict())
     elif hasattr(obj, '__dataclass_fields__'):  # Dataclass
-        from dataclasses import asdict
         return to_jsonable(asdict(obj))
     elif hasattr(obj, 'to_jsonable'):
         return obj.to_jsonable()
