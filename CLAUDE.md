@@ -39,7 +39,7 @@ src/mispatch_finder/
 
 ### 3. Ports & Adapters
 All external dependencies are abstracted through Ports:
-- `VulnerabilityRepositoryPort` → `VulnerabilityRepository` (cve_collector adapter)
+- `VulnerabilityDataPort` → `VulnerabilityDataAdapter` (cve_collector adapter)
 - `RepositoryPort` → `GitRepository` (git operations)
 - `MCPServerPort` → `MCPServer` (MCP server management)
 - `LLMPort` → `LLM` (LLM API adapter)
@@ -188,7 +188,7 @@ class Repository:
 - **Ports**: [core/ports.py](src/mispatch_finder/core/ports.py) - All protocol interfaces
 
 ### Infrastructure Layer
-- **Vulnerability Repository**: [infra/vulnerability_repository.py](src/mispatch_finder/infra/vulnerability_repository.py) - cve_collector adapter
+- **Vulnerability Data Adapter**: [infra/vulnerability_data.py](src/mispatch_finder/infra/vulnerability_data.py) - cve_collector adapter
 - **Git Repository**: [infra/git_repo.py](src/mispatch_finder/infra/git_repo.py) - Git operations
 - **LLM**: [infra/llm.py](src/mispatch_finder/infra/llm.py) - LLM API adapter (uses llm_adapters)
 - **LLM Adapters**: [infra/llm_adapters/](src/mispatch_finder/infra/llm_adapters/) - Provider implementations

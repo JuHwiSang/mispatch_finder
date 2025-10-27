@@ -142,7 +142,7 @@ def _create_mocked_container(
     container.config.from_dict(config)
     
     # Override providers with mocks
-    container.vuln_repo.override(
+    container.vuln_data.override(
         providers.Singleton(
             MockVulnerabilityRepository,
             repo_url=str(repo_dir),
@@ -203,7 +203,7 @@ def mock_container_for_list(tmp_path, monkeypatch):
         container = Container()
         config = main._get_default_config()
         container.config.from_dict(config)
-        container.vuln_repo.override(providers.Singleton(MockVulnerabilityRepository))
+        container.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
         return container
     
     monkeypatch.setattr("mispatch_finder.app.main.Container", mocked_container_class)
@@ -217,7 +217,7 @@ def mock_container_for_clear(tmp_path, monkeypatch):
         config = main._get_default_config()
         config.update({"cache_dir": tmp_path / "cache"})
         container.config.from_dict(config)
-        container.vuln_repo.override(providers.Singleton(MockVulnerabilityRepository))
+        container.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
         return container
     
     monkeypatch.setattr("mispatch_finder.app.main.Container", mocked_container_class)

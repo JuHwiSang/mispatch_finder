@@ -178,7 +178,7 @@ class TestAnalysisOrchestrator:
 
     def test_orchestrator_full_flow(self):
         """Test full orchestration flow."""
-        vuln_repo = FakeVulnRepo()
+        vuln_data = FakeVulnRepo()
         repo = FakeRepo()
         mcp = FakeMCP()
         llm = FakeLLM()
@@ -188,7 +188,7 @@ class TestAnalysisOrchestrator:
         json_extractor = JsonExtractor()
 
         orchestrator = AnalysisOrchestrator(
-            vuln_repo=vuln_repo,
+            vuln_data=vuln_data,
             repo=repo,
             mcp=mcp,
             llm=llm,
@@ -210,7 +210,7 @@ class TestAnalysisOrchestrator:
             def call(self, *, prompt: str, mcp_url: str, mcp_token: str) -> str:
                 raise RuntimeError("LLM error")
 
-        vuln_repo = FakeVulnRepo()
+        vuln_data = FakeVulnRepo()
         repo = FakeRepo()
         mcp = FakeMCP()
         llm = ErrorLLM()
@@ -220,7 +220,7 @@ class TestAnalysisOrchestrator:
         json_extractor = JsonExtractor()
 
         orchestrator = AnalysisOrchestrator(
-            vuln_repo=vuln_repo,
+            vuln_data=vuln_data,
             repo=repo,
             mcp=mcp,
             llm=llm,

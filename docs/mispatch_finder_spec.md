@@ -404,7 +404,7 @@ llm = providers.Factory(
 # Use cases receive dependencies via DI
 run_analysis = providers.Factory(
     RunAnalysisUseCase,
-    vuln_repo=vuln_repo,          # Singleton
+    vuln_data=vuln_data,          # Singleton
     repo=repo,                     # Singleton
     mcp=mcp_server,                # Factory
     llm=llm,                       # Factory

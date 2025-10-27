@@ -8,10 +8,10 @@ class ClearCacheUseCase:
         self,
         *,
         cache: CachePort,
-        vuln_repo: VulnerabilityDataPort,
+        vuln_data: VulnerabilityDataPort,
     ) -> None:
         self._cache = cache
-        self._vuln_repo = vuln_repo
+        self._vuln_data = vuln_data
 
     def execute(self, vuln_cache_prefix: str | None = None) -> None:
         """Clear application caches.
@@ -23,5 +23,5 @@ class ClearCacheUseCase:
                 - "gh_repo": Clear only GitHub repository metadata
         """
         self._cache.clear_all()
-        self._vuln_repo.clear_cache(prefix=vuln_cache_prefix)
+        self._vuln_data.clear_cache(prefix=vuln_cache_prefix)
 

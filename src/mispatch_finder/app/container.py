@@ -8,7 +8,7 @@ from ..core.usecases.list import ListUseCase
 from ..core.usecases.clear_cache import ClearCacheUseCase
 from ..core.usecases.logs import LogsUseCase
 from ..core.services import DiffService, JsonExtractor, AnalysisOrchestrator
-from ..infra.vulnerability_repository import VulnerabilityRepository
+from ..infra.vulnerability_data import VulnerabilityDataAdapter
 from ..infra.repository import Repository
 from ..infra.mcp_server import MCPServer
 from ..infra.llm import LLM
@@ -23,8 +23,8 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     # Adapters with injected config
-    vuln_repo = providers.Singleton(
-        VulnerabilityRepository,
+    vuln_data = providers.Singleton(
+        VulnerabilityDataAdapter,
         github_token=config.github_token,
     )
 
@@ -77,7 +77,7 @@ class Container(containers.DeclarativeContainer):
 
     analysis_orchestrator = providers.Factory(
         AnalysisOrchestrator,
-        vuln_repo=vuln_repo,
+        vuln_data=vuln_data,
         repo=repo,
         mcp=mcp_server,
         llm=llm,
@@ -96,7 +96,7 @@ class Container(containers.DeclarativeContainer):
 
     list_uc = providers.Factory(
         ListUseCase,
-        vuln_repo=vuln_repo,
+        vuln_data=vuln_data,
         limit=config.list_limit.as_int(),
         ecosystem=config.ecosystem,
     )
@@ -104,7 +104,7 @@ class Container(containers.DeclarativeContainer):
     clear_cache_uc = providers.Factory(
         ClearCacheUseCase,
         cache=cache,
-        vuln_repo=vuln_repo,
+        vuln_data=vuln_data,
     )
 
     logs_uc = providers.Factory(

@@ -27,7 +27,7 @@ class AnalysisOrchestrator:
     def __init__(
         self,
         *,
-        vuln_repo: VulnerabilityDataPort,
+        vuln_data: VulnerabilityDataPort,
         repo: RepositoryPort,
         mcp: MCPServerPort,
         llm: LLMPort,
@@ -36,7 +36,7 @@ class AnalysisOrchestrator:
         diff_service: DiffService,
         json_extractor: JsonExtractor,
     ) -> None:
-        self._vuln_repo = vuln_repo
+        self._vuln_data = vuln_data
         self._repo = repo
         self._mcp = mcp
         self._llm = llm
@@ -60,7 +60,7 @@ class AnalysisOrchestrator:
 
         try:
             # 1) Fetch GHSA metadata
-            vuln = self._vuln_repo.fetch_metadata(ghsa)
+            vuln = self._vuln_data.fetch_metadata(ghsa)
             self._logger.info("ghsa_meta", payload={
                 "type": "ghsa_meta",
                 "ghsa": ghsa,

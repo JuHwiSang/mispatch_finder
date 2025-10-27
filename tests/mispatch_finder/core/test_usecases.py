@@ -111,7 +111,7 @@ def test_run_analysis_usecase_executes_full_flow():
     """Test that AnalyzeUseCase delegates to orchestrator and stores result."""
     from mispatch_finder.core.services import AnalysisOrchestrator, DiffService, JsonExtractor
 
-    vuln_repo = FakeVulnRepo()
+    vuln_data = FakeVulnRepo()
     repo = FakeRepo()
     mcp = FakeMCP()
     llm = FakeLLM()
@@ -125,7 +125,7 @@ def test_run_analysis_usecase_executes_full_flow():
 
     # Create orchestrator
     orchestrator = AnalysisOrchestrator(
-        vuln_repo=vuln_repo,
+        vuln_data=vuln_data,
         repo=repo,
         mcp=mcp,
         llm=llm,
@@ -143,7 +143,7 @@ def test_run_analysis_usecase_executes_full_flow():
 
     result = uc.execute(ghsa="GHSA-TEST-1234-5678", force_reclone=False)
 
-    assert vuln_repo.fetched == ["GHSA-TEST-1234-5678"]
+    assert vuln_data.fetched == ["GHSA-TEST-1234-5678"]
     assert store.saved[0][0] == "GHSA-TEST-1234-5678"
     assert result["ghsa"] == "GHSA-TEST-1234-5678"
     # provider/model are logged by LLM adapter, not in result
@@ -151,23 +151,23 @@ def test_run_analysis_usecase_executes_full_flow():
 
 
 def test_list_ghsa_usecase():
-    vuln_repo = FakeVulnRepo()
-    uc = ListUseCase(vuln_repo=vuln_repo, limit=500, ecosystem="npm")
+    vuln_data = FakeVulnRepo()
+    uc = ListUseCase(vuln_data=vuln_data, limit=500, ecosystem="npm")
 
     result = uc.execute()
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
-    assert vuln_repo.listed == [(500, "npm")]
+    assert vuln_data.listed == [(500, "npm")]
 
 
 def test_list_ghsa_usecase_custom_ecosystem():
-    vuln_repo = FakeVulnRepo()
-    uc = ListUseCase(vuln_repo=vuln_repo, limit=100, ecosystem="pypi")
+    vuln_data = FakeVulnRepo()
+    uc = ListUseCase(vuln_data=vuln_data, limit=100, ecosystem="pypi")
 
     result = uc.execute()
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
-    assert vuln_repo.listed == [(100, "pypi")]
+    assert vuln_data.listed == [(100, "pypi")]
 
 
 def test_clear_cache_usecase():
@@ -181,13 +181,13 @@ def test_clear_cache_usecase():
             self.cleared = True
 
     cache = FakeCache()
-    vuln_repo = FakeVulnRepo()
+    vuln_data = FakeVulnRepo()
 
-    uc = ClearCacheUseCase(cache=cache, vuln_repo=vuln_repo)
+    uc = ClearCacheUseCase(cache=cache, vuln_data=vuln_data)
     uc.execute()
 
     assert cache.cleared
-    assert vuln_repo.cache_cleared_with == [None]
+    assert vuln_data.cache_cleared_with == [None]
 
 
 def test_clear_cache_usecase_with_prefix():
@@ -201,11 +201,11 @@ def test_clear_cache_usecase_with_prefix():
             self.cleared = True
 
     cache = FakeCache()
-    vuln_repo = FakeVulnRepo()
+    vuln_data = FakeVulnRepo()
 
-    uc = ClearCacheUseCase(cache=cache, vuln_repo=vuln_repo)
+    uc = ClearCacheUseCase(cache=cache, vuln_data=vuln_data)
     uc.execute(vuln_cache_prefix="osv")
 
     assert cache.cleared
-    assert vuln_repo.cache_cleared_with == ["osv"]
+    assert vuln_data.cache_cleared_with == ["osv"]
 
