@@ -91,8 +91,13 @@ Command format: `mispatch-finder <command> [options]`
    mispatch-finder batch --filter "severity == 'CRITICAL'" --limit 5
    mispatch-finder batch --no-filter --limit 100
    ```
-   - Applies default filter (stars >= 100, size <= 10MB) unless overridden
-   - Use `--filter` to override or `--no-filter` to disable
+   - **Exception**: No UseCase or Facade - implemented directly in `cli.py` only
+   - **Rationale**: `batch` is a CLI orchestration helper that spawns subprocess calls to `analyze`
+     - Each analysis runs in isolated process (clean memory, independent failure)
+     - Uses `subprocess.run()` to invoke `mispatch-finder analyze <GHSA>` repeatedly
+     - Only handles CLI concerns: progress display, filtering pending tasks, limiting runs
+     - No business logic - just loops through vulnerabilities and delegates to existing `analyze` command
+   - **Future consideration**: If batch logic becomes complex (e.g., parallel execution, retry strategies, distributed jobs), consider extracting to `BatchUseCase` in core layer. For now, simple subprocess loop in CLI is most efficient.
 
 ## Core Domain Models
 
@@ -214,6 +219,27 @@ class Repository:
       - Cleaner, more readable type hints
       - Remove unnecessary `typing` module imports
       - Improve code maintainability and consistency
+
+### Phase 9: CLI Logging Simplification (2025-10)
+12. **Removed infra dependency from CLI layer**
+    - **Problem**: `cli.py` was importing `infra.logging` (build_json_console_handler, build_json_file_handler)
+    - **Solution**: CLI now uses simpler logging approach:
+      - User-facing messages → `typer.echo()` (stdout) and `typer.echo(err=True)` (stderr)
+      - Debugging/internal logs → Standard library `logging.basicConfig()`
+      - Structured JSON logging (`AnalysisLogger`) remains in `infra/logging/` for core/business logic only
+    - **Changes**:
+      - Removed `from ..infra.logging import ...` in `cli.py`
+      - Replaced structured log setup with simple `logging.basicConfig()`
+      - Added user-friendly status messages: "Starting analysis: {ghsa}", "Log file: {path}", etc.
+      - Error messages use `typer.echo(err=True)` + `raise typer.Exit(code=2)`
+    - **Benefits**:
+      - Clean layer separation: CLI → app layer only, no infra dependencies
+      - Simpler CLI code focused on user interaction
+      - Structured logging stays where it belongs (infra, used by core services)
+    - **Rationale**:
+      - CLI is user-facing interface - needs simple, readable output
+      - Structured JSON logs are for analysis workflow (core/infra concern)
+      - Following typer framework conventions (native echo methods)
 
 ## Key Files & Locations
 
