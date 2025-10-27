@@ -103,9 +103,9 @@ class Vulnerability:
     ghsa_id: str
     repository: Repository
     commit_hash: str
-    cve_id: Optional[str] = None
-    summary: Optional[str] = None
-    severity: Optional[str] = None  # "CRITICAL", "HIGH", "MEDIUM", "LOW"
+    cve_id: str | None = None
+    summary: str | None = None
+    severity: str | None = None  # "CRITICAL", "HIGH", "MEDIUM", "LOW"
 ```
 
 ### Repository
@@ -114,9 +114,9 @@ class Vulnerability:
 class Repository:
     owner: str
     name: str
-    ecosystem: Optional[str] = None  # "npm", "pypi", "go"
-    star_count: Optional[int] = None
-    size_kb: Optional[int] = None
+    ecosystem: str | None = None  # "npm", "pypi", "go"
+    star_count: int | None = None
+    size_kb: int | None = None
 ```
 
 ## Recent Refactoring (2025-01)
@@ -189,6 +189,31 @@ class Repository:
       - "VulnerabilityData" emphasizes data fetching role vs. "Repository" pattern confusion
       - Shorter variable name `vuln_data` improves readability
     - **Impact**: Updated all layers (ports, infra, usecases, services, tests, docs)
+
+### Phase 8: Type Hints Modernization (2025-10)
+11. **Migrated to Python 3.13+ Type Hint Syntax**
+    - **Legacy typing removed**: Replaced all `from typing import List, Dict, Tuple, Optional, Union`
+    - **Modern syntax adopted**:
+      - `List[T]` → `list[T]`
+      - `Dict[K, V]` → `dict[K, V]`
+      - `Tuple[T1, T2]` → `tuple[T1, T2]`
+      - `Optional[T]` → `T | None`
+      - `Union[A, B]` → `A | B`
+    - **Exception**: `typing.Literal`, `typing.Protocol`, `typing.TYPE_CHECKING` retained (not deprecated)
+    - **Import organization**: Fixed all mid-function imports, moved to file top
+      - `cli.py`: Moved `Vulnerability` import from line 110, 180 → top
+      - `main.py`: Moved `ListUseCase` import from line 116 → top
+      - `to_jsonable.py`: Moved `asdict` import from line 32 → top
+    - **Files updated**: 20 files across all layers
+      - Core: `models.py`, `usecases/*.py`, `services/*.py`
+      - Infra: `vulnerability_data.py`, `repository.py`, `result_store.py`, `log_store.py`, `mcp_server.py`, `llm_adapters/*.py`, `mcp/tunnel.py`
+      - App: `config.py`, `main.py`, `cli.py`
+      - Shared: `log_summary.py`, `to_jsonable.py`
+    - **Rationale**:
+      - Align with Python 3.13+ best practices
+      - Cleaner, more readable type hints
+      - Remove unnecessary `typing` module imports
+      - Improve code maintainability and consistency
 
 ## Key Files & Locations
 
