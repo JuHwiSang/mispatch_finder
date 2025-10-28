@@ -1,8 +1,8 @@
-from .app.main import analyze, list_ids, clear, logs
+from .app.main import analyze, list_vulnerabilities, clear, logs
 
 __all__ = [
     "analyze",
-    "list_ids",
+    "list_vulnerabilities",
     "clear",
     "logs",
 ]

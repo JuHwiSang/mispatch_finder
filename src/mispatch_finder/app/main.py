@@ -1,130 +1,120 @@
 from __future__ import annotations
 
-import functools
-from typing import Callable, Concatenate, ParamSpec, TypeVar
-
-from .config import (
-    get_cache_dir,
-    get_default_filter_expr,
-    get_ecosystem,
-    get_github_token,
-    get_logs_dir,
-    get_model_api_key,
-    get_prompt_diff_max_chars,
-    get_results_dir,
-)
+from .config import AppConfig
 from .container import Container
 from ..core.domain.models import Vulnerability
 from ..core.usecases.list import ListUseCase
 
-P = ParamSpec("P")
-R = TypeVar("R")
 
+def _create_container(config: AppConfig | None = None) -> Container:
+    """Create and initialize a container.
 
-def _get_default_config() -> dict[str, object]:
-    """Get default configuration dictionary."""
-    return {
-        "github_token": get_github_token(),
-        "llm_api_key": get_model_api_key(),
-        "llm_provider_name": "openai",
-        "llm_model_name": "gpt-4",
-        "cache_dir": get_cache_dir(),
-        "results_dir": get_results_dir(),
-        "logs_dir": get_logs_dir(),
-        "mcp_port": 18080,
-        "prompt_diff_max_chars": get_prompt_diff_max_chars(),
-        "list_limit": 10,
-        "ecosystem": get_ecosystem(),
-        "default_filter_expr": get_default_filter_expr(),
-    }
+    Args:
+        config: Optional config. If None, loads from environment variables.
 
-
-def with_container(
-    func: Callable[Concatenate[Container, P], R]
-) -> Callable[P, R]:
-    """Automate container creation, configuration, and resource management.
-    
-    Preserves type hints while injecting container as the first argument.
-    Maps CLI-friendly parameter names to internal config keys.
+    Returns:
+        Initialized container instance
     """
+    container = Container()
 
-    @functools.wraps(func)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        container = Container()
+    if config is None:
+        # Load from environment variables (BaseSettings default behavior)
+        config = AppConfig()
 
-        # Map CLI parameter names to config keys
-        param_to_config = {
-            "provider": "llm_provider_name",
-            "model": "llm_model_name",
-            "api_key": "llm_api_key",
-        }
+    container.config.from_pydantic(config)
+    container.init_resources()
 
-        # Override config with kwargs that match config keys
-        config = _get_default_config()
-        config_keys = config.keys()
-        
-        for param_name, value in kwargs.items():
-            if value is None:
-                continue
-            # Map parameter name to config key if needed
-            config_key = param_to_config.get(param_name, param_name)
-            if config_key in config_keys:
-                config[config_key] = value
-
-        container.config.from_dict(config)
-        container.init_resources()
-        try:
-            return func(container, *args, **kwargs)
-        finally:
-            container.shutdown_resources()
-
-    return wrapper
+    return container
 
 
-@with_container
 def analyze(
-    container: Container,
-    *,
     ghsa: str,
-    force_reclone: bool = False,
+    *,
     provider: str | None = None,
     model: str | None = None,
     api_key: str | None = None,
     github_token: str | None = None,
+    force_reclone: bool = False,
+    config: AppConfig | None = None,
 ) -> dict[str, object]:
-    """Run analysis via use case."""
+    """Analyze a vulnerability for potential mispatches.
+
+    Args:
+        ghsa: GHSA identifier (e.g., GHSA-xxxx-xxxx-xxxx)
+        provider: LLM provider override (optional)
+        model: LLM model override (optional)
+        api_key: LLM API key override (optional, otherwise from config/env)
+        github_token: GitHub token override (optional, otherwise from config/env)
+        force_reclone: Force re-clone of repository cache
+        config: Optional config for testing. If None, loads from env vars.
+
+    Returns:
+        Analysis result dictionary
+
+    Raises:
+        ValueError: If required credentials are missing
+    """
+    container = _create_container(config)
+
+    # Runtime params override config
+    llm_api_key = api_key or container.config.llm.api_key()
+    gh_token = github_token or container.config.github.token()
+
+    if not llm_api_key:
+        raise ValueError("API key required via MISPATCH_FINDER_LLM__API_KEY")
+    if not gh_token:
+        raise ValueError("GitHub token required via MISPATCH_FINDER_GITHUB__TOKEN")
+
+    # Override LLM config if runtime params provided
+    if provider or model or api_key:
+        # Create new LLM instance with overrides
+        from ..infra.llm import LLM
+
+        llm = LLM(
+            provider=provider or container.config.llm.provider_name(),
+            model=model or container.config.llm.model_name(),
+            api_key=llm_api_key,
+        )
+        # Temporarily override orchestrator's LLM
+        orchestrator = container.analysis_orchestrator()
+        orchestrator._llm = llm
+    else:
+        orchestrator = container.analysis_orchestrator()
+
+    # Execute use case
     uc = container.analyze_uc()
     return uc.execute(ghsa=ghsa, force_reclone=force_reclone)
 
 
-@with_container
 def list_vulnerabilities(
-    container: Container,
     detailed: bool = False,
     filter_expr: str | None = None,
-    **kwargs
+    config: AppConfig | None = None,
 ) -> list[str] | list[Vulnerability]:
-    """List vulnerabilities with optional detailed metadata.
+    """List available vulnerabilities from the database.
 
     Args:
-        detailed: If True, return full Vulnerability objects; if False, return GHSA IDs only
-        filter_expr: Optional asteval filter expression (None = use default from config)
+        detailed: If True, return full Vulnerability objects; if False, return GHSA IDs
+        filter_expr: Filter expression (None = use default, "" = no filter)
+        config: Optional config for testing. If None, loads from env vars.
 
     Returns:
         list[str] if detailed=False, list[Vulnerability] if detailed=True
     """
-    # Create use case with custom parameters
-    limit: int = int(container.config.list_limit())
-    ecosystem: str = str(container.config.ecosystem())
+    container = _create_container(config)
 
-    # Handle filter: None = use default, empty string = no filter, otherwise = custom filter
+    # Handle filter: None = use default, "" = no filter, otherwise = custom
     actual_filter: str | None
     if filter_expr is None:
-        actual_filter = str(container.config.default_filter_expr())
+        actual_filter = container.config.vulnerability.filter_expr()
     elif filter_expr == "":
         actual_filter = None  # No filter
     else:
         actual_filter = filter_expr
+
+    # Create use case with parameters
+    limit = 10  # Default list limit
+    ecosystem = container.config.vulnerability.ecosystem()
 
     uc = ListUseCase(
         vuln_data=container.vuln_data(),
@@ -136,38 +126,32 @@ def list_vulnerabilities(
     return uc.execute()
 
 
-@with_container
-def list_ids(container: Container, **kwargs) -> list[str]:
-    """List available GHSA IDs without default filter (backward compatibility).
+def clear(config: AppConfig | None = None) -> None:
+    """Clear all caches.
 
-    Note: This function does NOT apply the default filter to maintain backward compatibility.
-    Use list_vulnerabilities() for filtered results.
+    Args:
+        config: Optional config for testing. If None, loads from env vars.
     """
-    from ..core.usecases.list import ListUseCase
-
-    limit: int = int(container.config.list_limit())
-    ecosystem: str = str(container.config.ecosystem())
-
-    # Explicitly no filter for backward compatibility
-    uc = ListUseCase(
-        vuln_data=container.vuln_data(),
-        limit=limit,
-        ecosystem=ecosystem,
-        detailed=False,
-        filter_expr=None,
-    )
-    return uc.execute()
-
-
-@with_container
-def clear(container: Container, **kwargs) -> None:
-    """Clear all caches."""
+    container = _create_container(config)
     uc = container.clear_cache_uc()
     uc.execute()
 
 
-@with_container
-def logs(container: Container, ghsa: str | None, verbose: bool, **kwargs) -> list[str]:
-    """Show log summary or details for a specific GHSA."""
+def logs(
+    ghsa: str | None = None,
+    verbose: bool = False,
+    config: AppConfig | None = None,
+) -> list[str]:
+    """Show analysis logs.
+
+    Args:
+        ghsa: Optional GHSA ID. If None, shows summary of all runs.
+        verbose: Show detailed information
+        config: Optional config for testing. If None, loads from env vars.
+
+    Returns:
+        List of log lines
+    """
+    container = _create_container(config)
     uc = container.logs_uc()
     return uc.execute(ghsa, verbose)

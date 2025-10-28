@@ -1,109 +1,136 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from platformdirs import PlatformDirs
+from pydantic import Field, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 APP_NAME = "mispatch_finder"
 
 
-def _dirs() -> PlatformDirs:
-    return PlatformDirs(appname=APP_NAME, appauthor=False)
+def _default_home() -> Path:
+    """Get default home directory using platformdirs."""
+    return Path(PlatformDirs(appname=APP_NAME, appauthor=False).user_cache_dir)
 
 
-def _get_home_dir() -> Path:
-    """Resolve the application home directory.
+class DirectoryConfig(BaseSettings):
+    """Directory configuration with computed paths."""
 
-    Precedence:
-    - MISPATCH_HOME if set
-    - platformdirs user_cache_dir as base
-    """
-    env = os.environ.get("MISPATCH_HOME")
-    if env:
-        home = Path(os.path.expanduser(os.path.expandvars(env)))
-    else:
-        home = Path(_dirs().user_cache_dir)
-    home.mkdir(parents=True, exist_ok=True)
-    return home
+    home: Path = Field(
+        default_factory=_default_home,
+        description="Base directory for all mispatch_finder data",
+    )
 
+    @computed_field
+    @property
+    def cache_dir(self) -> Path:
+        """Cache directory for cloned repositories."""
+        path = self.home / "cache"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
-def get_cache_dir() -> Path:
-    # Use MISPATCH_HOME base; no per-dir env required
-    path = _get_home_dir() / "cache"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    @computed_field
+    @property
+    def results_dir(self) -> Path:
+        """Results directory for analysis outputs."""
+        path = self.home / "results"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
-
-def get_results_dir() -> Path:
-    # Use MISPATCH_HOME base; no per-dir env required
-    path = _get_home_dir() / "results"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def get_logs_dir() -> Path:
-    # Use MISPATCH_HOME base; no per-dir env required
-    path = _get_home_dir() / "logs"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    @computed_field
+    @property
+    def logs_dir(self) -> Path:
+        """Logs directory for analysis logs."""
+        path = self.home / "logs"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
 
-def get_github_token(env_var: str = "GITHUB_TOKEN") -> str | None:
-    return os.environ.get(env_var)
+class VulnerabilityConfig(BaseSettings):
+    """Vulnerability filtering configuration."""
 
+    ecosystem: str = Field(
+        default="npm",
+        description="Target vulnerability ecosystem (npm, pypi, Maven, Go, etc.)",
+    )
 
-def get_model_api_key(env_var: str = "MODEL_API_KEY") -> str | None:
-    """Return the unified model API key from env.
-
-    Primary: MODEL_API_KEY
-    Fallbacks: OPENAI_API_KEY, ANTHROPIC_API_KEY
-    """
-    return (
-        os.environ.get(env_var)
-        or os.environ.get("OPENAI_API_KEY")
-        or os.environ.get("ANTHROPIC_API_KEY")
+    filter_expr: str = Field(
+        default="stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000",
+        description=(
+            "Default filter expression for vulnerability listing. "
+            "Available variables: ghsa_id, cve_id, severity, stars, size_bytes, etc. "
+            "Uses asteval syntax."
+        ),
     )
 
 
-def get_prompt_diff_max_chars(env_var: str = "MISPATCH_DIFF_MAX_CHARS") -> int:
-    """Maximum characters of diff included in prompt (middle-truncated if exceeded)."""
-    default = 200_000
-    val = os.environ.get(env_var)
-    if not val:
-        return default
-    num = int(val)
-    return num if num > 0 else default
+class LLMConfig(BaseSettings):
+    """LLM configuration."""
 
+    api_key: str | None = Field(
+        default=None,
+        description="LLM API key (supports OpenAI, Anthropic, etc.)",
+    )
 
-def get_ecosystem(env_var: str = "MISPATCH_ECOSYSTEM") -> str:
-    """Get the target vulnerability ecosystem.
+    provider_name: str = Field(
+        default="openai",
+        description="LLM provider (openai, anthropic)",
+    )
 
-    Supported ecosystems: npm, pypi, Maven, Go, etc.
-    See cve_collector documentation for full list.
-
-    Default: npm
-    """
-    return os.environ.get(env_var, "npm")
-
-
-def get_default_filter_expr(env_var: str = "MISPATCH_FILTER_EXPR") -> str:
-    """Get the default filter expression for vulnerability listing.
-
-    Filter uses asteval syntax with available variables:
-    - ghsa_id, cve_id, has_cve, severity, summary, description
-    - published_at, modified_at, ecosystem, repo_slug
-    - stars, size_bytes, repo_count, commit_count, poc_count
-
-    Note: Many fields can be None, so use 'is not None' checks before comparisons.
-
-    Default: "stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000"
-    (Repositories with ≥100 stars and ≤10MB size)
-    """
-    return os.environ.get(
-        env_var,
-        "stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000"
+    model_name: str = Field(
+        default="gpt-4",
+        description="LLM model name",
     )
 
 
+class GitHubConfig(BaseSettings):
+    """GitHub configuration."""
+
+    token: str | None = Field(
+        default=None,
+        description="GitHub personal access token",
+    )
+
+
+class AnalysisConfig(BaseSettings):
+    """Analysis-specific settings."""
+
+    diff_max_chars: int = Field(
+        default=200_000,
+        description="Maximum diff characters to include in LLM prompt (middle-truncated if exceeded)",
+    )
+
+
+class AppConfig(BaseSettings):
+    """Root application configuration.
+
+    All configuration is loaded from environment variables with MISPATCH_FINDER_ prefix.
+    Use double underscore for nested config: MISPATCH_FINDER_LLM__API_KEY
+
+    Example env vars:
+        # Required
+        export MISPATCH_FINDER_GITHUB__TOKEN=ghp_xxxxxxxxxxxxx
+        export MISPATCH_FINDER_LLM__API_KEY=sk-xxxxxxxxxxxxx
+
+        # Optional (with defaults)
+        export MISPATCH_FINDER_LLM__PROVIDER_NAME=openai
+        export MISPATCH_FINDER_LLM__MODEL_NAME=gpt-4
+        export MISPATCH_FINDER_VULNERABILITY__ECOSYSTEM=npm
+        export MISPATCH_FINDER_DIRECTORIES__HOME=/custom/path
+        export MISPATCH_FINDER_ANALYSIS__DIFF_MAX_CHARS=200000
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="MISPATCH_FINDER_",
+        env_nested_delimiter="__",
+        frozen=True,
+        extra="forbid",
+    )
+
+    directories: DirectoryConfig = Field(default_factory=DirectoryConfig)
+    vulnerability: VulnerabilityConfig = Field(default_factory=VulnerabilityConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    github: GitHubConfig = Field(default_factory=GitHubConfig)
+    analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)

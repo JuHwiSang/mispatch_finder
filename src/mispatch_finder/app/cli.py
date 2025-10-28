@@ -9,7 +9,7 @@ from typing import cast
 
 import typer
 
-from .config import get_github_token, get_logs_dir, get_model_api_key
+from .config import AppConfig
 from .main import analyze as analyze_main, clear, list_vulnerabilities, logs as logs_main
 from ..core.domain.models import Vulnerability
 from ..shared.log_summary import summarize_logs
@@ -36,9 +36,11 @@ def analyze(
     level = logging._nameToLevel.get(log_level.upper(), logging.INFO)
     logging.basicConfig(level=level, format='%(levelname)s: %(message)s', force=True)
 
-    # User-facing status messages via typer.echo
-    logs_dir = get_logs_dir()
-    log_file = logs_dir / f"{ghsa}.jsonl"
+    # Load config from environment variables
+    config = AppConfig()
+
+    # User-facing status messages
+    log_file = config.directories.logs_dir / f"{ghsa}.jsonl"
     if log_file.exists():
         log_file.unlink()
 
@@ -46,23 +48,20 @@ def analyze(
     typer.echo(f"Provider: {provider}, Model: {model}")
     typer.echo(f"Log file: {log_file}")
 
-    # Resolve required secrets from env
-    api_key = get_model_api_key()
-    if not api_key:
-        typer.echo("Error: API key required via MODEL_API_KEY (or OPENAI_API_KEY/ANTHROPIC_API_KEY)", err=True)
+    # Validate required secrets
+    if not config.llm.api_key:
+        typer.echo("Error: API key required via MISPATCH_FINDER_LLM__API_KEY", err=True)
         raise typer.Exit(code=2)
 
-    github_token = get_github_token()
-    if not github_token:
-        typer.echo("Error: GitHub token required via GITHUB_TOKEN", err=True)
+    if not config.github.token:
+        typer.echo("Error: GitHub token required via MISPATCH_FINDER_GITHUB__TOKEN", err=True)
         raise typer.Exit(code=2)
 
+    # Call facade (config loaded from env automatically)
     result = analyze_main(
         ghsa=ghsa,
         provider=provider,
         model=model,
-        api_key=api_key,
-        github_token=github_token,
         force_reclone=force_reclone,
     )
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
@@ -97,7 +96,8 @@ def list_command(
 
     # Filter out already analyzed unless --all is specified
     if not all_items:
-        logs_dir = get_logs_dir()
+        config = AppConfig()
+        logs_dir = config.directories.logs_dir
         summaries = summarize_logs(logs_dir, verbose=False)
 
         if not detailed:
@@ -191,7 +191,8 @@ def batch(
     result = list_vulnerabilities(detailed=True, filter_expr=final_filter)
     vulns = cast(list[Vulnerability], result)
 
-    logs_dir = get_logs_dir()
+    config = AppConfig()
+    logs_dir = config.directories.logs_dir
     summaries = summarize_logs(logs_dir, verbose=False)
 
     # Filter out already completed IDs

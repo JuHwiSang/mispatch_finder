@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dependency_injector import containers, providers
 
+from .config import AppConfig
 from ..core.ports import DefaultTokenGenerator
 from ..core.usecases.analyze import AnalyzeUseCase
 from ..core.usecases.list import ListUseCase
@@ -19,38 +20,40 @@ from ..infra.logging import AnalysisLogger
 
 
 class Container(containers.DeclarativeContainer):
-    # Configuration
-    config = providers.Configuration()
+    """DI container with Pydantic BaseSettings support."""
+
+    # Configuration - supports Pydantic models
+    config = providers.Configuration(pydantic_settings=[AppConfig()])
 
     # Adapters with injected config
     vuln_data = providers.Singleton(
         VulnerabilityDataAdapter,
-        github_token=config.github_token,
+        github_token=config.github.token,
     )
 
     repo = providers.Singleton(
         Repository,
-        cache_dir=config.cache_dir,
+        cache_dir=config.directories.cache_dir,
     )
 
     mcp_server = providers.Factory(
         MCPServer,
-        port=config.mcp_port.as_int(),
+        port=18080,  # Default MCP port
     )
 
     result_store = providers.Singleton(
         ResultStore,
-        results_dir=config.results_dir,
+        results_dir=config.directories.results_dir,
     )
 
     log_store = providers.Singleton(
         LogStore,
-        logs_dir=config.logs_dir,
+        logs_dir=config.directories.logs_dir,
     )
 
     cache = providers.Singleton(
         Cache,
-        cache_dir=config.cache_dir,
+        cache_dir=config.directories.cache_dir,
     )
 
     token_gen = providers.Singleton(DefaultTokenGenerator)
@@ -61,16 +64,16 @@ class Container(containers.DeclarativeContainer):
     # LLM adapter (parameterized)
     llm = providers.Factory(
         LLM,
-        provider=config.llm_provider_name,
-        model=config.llm_model_name,
-        api_key=config.llm_api_key,
+        provider=config.llm.provider_name,
+        model=config.llm.model_name,
+        api_key=config.llm.api_key,
     )
 
     # Domain services
     diff_service = providers.Factory(
         DiffService,
         repo=repo,
-        max_chars=config.prompt_diff_max_chars.as_int(),
+        max_chars=config.analysis.diff_max_chars,
     )
 
     json_extractor = providers.Singleton(JsonExtractor)
@@ -97,8 +100,8 @@ class Container(containers.DeclarativeContainer):
     list_uc = providers.Factory(
         ListUseCase,
         vuln_data=vuln_data,
-        limit=config.list_limit.as_int(),
-        ecosystem=config.ecosystem,
+        limit=10,  # Default list limit
+        ecosystem=config.vulnerability.ecosystem,
     )
 
     clear_cache_uc = providers.Factory(
