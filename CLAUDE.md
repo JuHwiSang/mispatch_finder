@@ -61,13 +61,16 @@ Command format: `mispatch-finder <command> [options]`
 
 2. **`list`** - List available vulnerabilities
    ```bash
-   mispatch-finder list                                    # List IDs (default filter applied)
+   mispatch-finder list                                    # Unanalyzed IDs only (default filter applied)
+   mispatch-finder list --all                             # Include already analyzed
    mispatch-finder list --detailed                        # List with full metadata
+   mispatch-finder list --limit 10                        # Limit to 10 results
    mispatch-finder list --filter "stars > 1000"          # Custom filter
    mispatch-finder list --no-filter                       # Disable filter (all vulnerabilities)
    ```
    - UseCase: `ListUseCase` ([core/usecases/list.py](src/mispatch_finder/core/usecases/list.py))
    - Facade: `list_vulnerabilities()` ([app/main.py](src/mispatch_finder/app/main.py))
+   - **Default behavior**: Shows only unanalyzed vulnerabilities (use `--all` to include analyzed)
    - **Default filter**: `stars >= 100 and size <= 10MB` (configurable via `MISPATCH_FILTER_EXPR`)
 
 3. **`clear`** - Clear all caches

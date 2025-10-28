@@ -73,13 +73,17 @@ def list_command(
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed vulnerability information"),
     filter_expr: str | None = typer.Option(None, "--filter", "-f", help="Filter expression (use empty string '' to disable default filter)"),
     no_filter: bool = typer.Option(False, "--no-filter", help="Disable default filter (show all vulnerabilities)"),
+    all_items: bool = typer.Option(False, "--all", "-a", help="Include already analyzed vulnerabilities"),
+    limit: int | None = typer.Option(None, "--limit", "-n", help="Limit number of results"),
 ):
     """List available vulnerabilities from the database.
 
-    By default, shows only GHSA IDs with default filter applied (stars>=100, size<=10MB).
+    By default, shows only unanalyzed GHSA IDs with default filter applied (stars>=100, size<=10MB).
+    Use --all to include already analyzed vulnerabilities.
     Use --detailed to include full metadata.
     Use --filter to override the default filter (e.g., 'stars > 1000 and severity == "CRITICAL"').
     Use --no-filter to disable filtering entirely and show all vulnerabilities.
+    Use --limit to restrict the number of results.
     """
     # Handle filter logic: explicit filter > no_filter flag > default
     if no_filter:
@@ -90,6 +94,24 @@ def list_command(
         final_filter = None  # Use config default
 
     result = list_vulnerabilities(detailed=detailed, filter_expr=final_filter)
+
+    # Filter out already analyzed unless --all is specified
+    if not all_items:
+        logs_dir = get_logs_dir()
+        summaries = summarize_logs(logs_dir, verbose=False)
+
+        if not detailed:
+            # Filter GHSA IDs
+            ghsa_ids = cast(list[str], result)
+            result = [ghsa for ghsa in ghsa_ids if ghsa not in summaries or not summaries[ghsa].done]
+        else:
+            # Filter Vulnerability objects
+            vulns = cast(list[Vulnerability], result)
+            result = [v for v in vulns if v.ghsa_id not in summaries or not summaries[v.ghsa_id].done]
+
+    # Apply limit if specified
+    if limit is not None:
+        result = result[:limit]
 
     if not detailed:
         # Simple list of IDs
