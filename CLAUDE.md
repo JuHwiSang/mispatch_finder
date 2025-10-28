@@ -244,13 +244,62 @@ class Repository:
       - Structured JSON logs are for analysis workflow (core/infra concern)
       - Following typer framework conventions (native echo methods)
 
+### Phase 10: Configuration System Overhaul (2025-10)
+13. **Migrated to Pydantic BaseSettings for Type-Safe Configuration**
+    - **Problem**: Spaghetti config logic with `_get_default_config()`, env reads scattered everywhere, test isolation failures
+    - **Solution**: Pydantic BaseSettings with hierarchical structure
+      - `AppConfig` (root) → `DirectoryConfig`, `VulnerabilityConfig`, `LLMConfig`, `GitHubConfig`, `AnalysisConfig`
+      - All settings load from environment variables with `MISPATCH_FINDER_` prefix
+      - Nested config via double underscore: `MISPATCH_FINDER_LLM__API_KEY`, `MISPATCH_FINDER_GITHUB__TOKEN`
+      - Computed fields using `@computed_field` and `@property` for derived paths
+    - **Changes**:
+      - **config.py**: Complete rewrite with Pydantic models
+        - `DirectoryConfig`: `home`, computed `cache_dir`, `results_dir`, `logs_dir`
+        - `LLMConfig`: `api_key`, `provider_name`, `model_name`
+        - `GitHubConfig`: `token`
+        - `VulnerabilityConfig`: `ecosystem`, `filter_expr`
+        - `AnalysisConfig`: `diff_max_chars`
+      - **container.py**: `providers.Configuration(pydantic_settings=[AppConfig])`
+      - **main.py**: Removed `with_container` decorator and global singleton
+        - ❌ `_container` global variable
+        - ❌ `get_container()` with singleton pattern
+        - ✅ `_create_container(config)` - creates fresh container each time
+        - All facade functions accept optional `config: AppConfig | None` parameter
+      - **cli.py**: Updated to new env var names
+        - ❌ `GITHUB_TOKEN`, `MODEL_API_KEY`
+        - ✅ `MISPATCH_FINDER_GITHUB__TOKEN`, `MISPATCH_FINDER_LLM__API_KEY`
+      - **Tests**: Explicit `AppConfig` instantiation for test isolation
+        - `test_config` fixture creates `AppConfig` with test-specific values
+        - All fixtures patch `_create_container` instead of using global state
+    - **Environment Variables**:
+      ```bash
+      # Required
+      export MISPATCH_FINDER_GITHUB__TOKEN=ghp_xxx
+      export MISPATCH_FINDER_LLM__API_KEY=sk-xxx
+
+      # Optional (with defaults)
+      export MISPATCH_FINDER_LLM__PROVIDER_NAME=openai
+      export MISPATCH_FINDER_LLM__MODEL_NAME=gpt-4
+      export MISPATCH_FINDER_VULNERABILITY__ECOSYSTEM=npm
+      export MISPATCH_FINDER_DIRECTORIES__HOME=/custom/path
+      export MISPATCH_FINDER_ANALYSIS__DIFF_MAX_CHARS=200000
+      ```
+    - **Benefits**:
+      - ✅ **Test isolation**: No more global state, each test gets fresh container
+      - ✅ **Type safety**: Pydantic validates at runtime, IDE autocomplete works
+      - ✅ **No spaghetti**: Single source of truth for configuration
+      - ✅ **Immutable**: `frozen=True` prevents accidental modification
+      - ✅ **Clear flow**: Env vars → `AppConfig` → `Container` → Services
+    - **Migration impact**: Updated 20+ files across all layers
+    - **Dependencies added**: `pydantic>=2.0.0`, `pydantic-settings>=2.0.0`
+
 ## Key Files & Locations
 
 ### Application Layer
 - **CLI**: [app/cli.py](src/mispatch_finder/app/cli.py) - Typer-based CLI commands
-- **Container**: [app/container.py](src/mispatch_finder/app/container.py) - Dependency injection configuration
-- **Config**: [app/config.py](src/mispatch_finder/app/config.py) - Environment variable handling
-- **Main**: [app/main.py](src/mispatch_finder/app/main.py) - Facade functions with `@with_container` decorator
+- **Container**: [app/container.py](src/mispatch_finder/app/container.py) - DI container with Pydantic support
+- **Config**: [app/config.py](src/mispatch_finder/app/config.py) - Pydantic BaseSettings configuration models
+- **Main**: [app/main.py](src/mispatch_finder/app/main.py) - Facade functions (`analyze`, `list_vulnerabilities`, `clear`, `logs`)
 
 ### Core Layer
 - **Domain Models**: [core/domain/models.py](src/mispatch_finder/core/domain/models.py)
