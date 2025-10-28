@@ -57,7 +57,7 @@ Command format: `mispatch-finder <command> [options]`
    mispatch-finder analyze GHSA-xxxx-xxxx-xxxx --provider openai --model gpt-4
    ```
    - UseCase: `AnalyzeUseCase` ([core/usecases/analyze.py](src/mispatch_finder/core/usecases/analyze.py))
-   - Facade: `analyze()` ([app/main.py:81](src/mispatch_finder/app/main.py#L81))
+   - CLI Command: `analyze()` ([app/cli.py:96](src/mispatch_finder/app/cli.py#L96))
 
 2. **`list`** - List available vulnerabilities
    ```bash
@@ -69,7 +69,7 @@ Command format: `mispatch-finder <command> [options]`
    mispatch-finder list --no-filter                       # Disable filter (all vulnerabilities)
    ```
    - UseCase: `ListUseCase` ([core/usecases/list.py](src/mispatch_finder/core/usecases/list.py))
-   - Facade: `list_vulnerabilities()` ([app/main.py](src/mispatch_finder/app/main.py))
+   - CLI Command: `list_command()` ([app/cli.py:157](src/mispatch_finder/app/cli.py#L157))
    - **Default behavior**: Shows only unanalyzed vulnerabilities (use `--all` to include analyzed)
    - **Default filter**: `stars >= 100 and size <= 10MB` (configurable via `MISPATCH_FILTER_EXPR`)
 
@@ -78,7 +78,7 @@ Command format: `mispatch-finder <command> [options]`
    mispatch-finder clear
    ```
    - UseCase: `ClearCacheUseCase` ([core/usecases/clear_cache.py](src/mispatch_finder/core/usecases/clear_cache.py))
-   - Facade: `clear()` ([app/main.py](src/mispatch_finder/app/main.py))
+   - CLI Command: `clear_command()` ([app/cli.py:235](src/mispatch_finder/app/cli.py#L235))
 
 4. **`logs [GHSA-ID]`** - Show analysis logs
    ```bash
@@ -86,7 +86,7 @@ Command format: `mispatch-finder <command> [options]`
    mispatch-finder logs GHSA-xxxx-xxxx-xxxx --verbose  # Detailed logs for specific GHSA
    ```
    - UseCase: `LogsUseCase` ([core/usecases/logs.py](src/mispatch_finder/core/usecases/logs.py))
-   - Facade: `logs()` ([app/main.py](src/mispatch_finder/app/main.py))
+   - CLI Command: `logs()` ([app/cli.py:250](src/mispatch_finder/app/cli.py#L250))
 
 5. **`batch`** - Run batch analysis
    ```bash
@@ -293,13 +293,45 @@ class Repository:
     - **Migration impact**: Updated 20+ files across all layers
     - **Dependencies added**: `pydantic>=2.0.0`, `pydantic-settings>=2.0.0`
 
+### Phase 11: CLI and Main Module Consolidation (2025-10)
+14. **Merged main.py into cli.py**
+    - **Problem**: Unnecessary separation between facade functions (`main.py`) and CLI commands (`cli.py`)
+    - **Solution**: Consolidated all application layer code into single `cli.py` module
+      - Deleted `app/main.py` entirely
+      - CLI commands directly contain business logic (container creation + use case execution)
+      - Tests use same pattern: create Container → execute UseCase (test actual implementation)
+    - **Changes**:
+      - **cli.py**: CLI commands create container and execute use cases inline
+        - `analyze()`: Creates Container, executes AnalyzeUseCase (lines 28-80)
+        - `list_command()`: Creates Container, executes ListUseCase (lines 83-155)
+        - `clear_command()`: Creates Container, executes ClearCacheUseCase (lines 158-170)
+        - `logs()`: Creates Container, executes LogsUseCase (lines 173-185)
+        - `batch()`: Creates Container, executes ListUseCase to fetch candidates (lines 188+)
+      - **Tests**: All tests consolidated in E2E file
+        - `test_main_e2e.py`: E2E tests create Container and execute UseCase (mimics CLI implementation)
+        - `conftest.py`: Provides mock implementations for testing
+        - Tests validate actual implementation behavior
+        - Deleted `test_main_facade.py` (no longer needed - no facades to test)
+      - **__init__.py**: Cleared all exports (public API will be in future `app/api.py`)
+    - **Benefits**:
+      - ✅ **Simpler structure**: No facade layer, no test helpers - just direct implementation
+      - ✅ **Direct flow**: CLI command → Container → UseCase (one pattern everywhere)
+      - ✅ **Less code**: Removed ~150 lines of facade + test helper boilerplate
+      - ✅ **Better tests**: Tests validate real implementation, not test-specific wrappers
+    - **Architecture**:
+      - `cli.py` structure: CLI Commands only (self-contained, no helpers)
+      - CLI commands handle: argument parsing, container creation, use case execution, output formatting
+      - Tests replicate same pattern to test actual behavior
+    - **Rationale**: No need for facades (used once) or test helpers (tests should test real code)
+
 ## Key Files & Locations
 
 ### Application Layer
-- **CLI**: [app/cli.py](src/mispatch_finder/app/cli.py) - Typer-based CLI commands
+- **CLI**: [app/cli.py](src/mispatch_finder/app/cli.py) - Typer-based CLI commands (self-contained)
+  - CLI commands: `analyze()`, `list_command()`, `clear_command()`, `logs()`, `batch()`
+  - Each command creates Container and executes UseCase inline
 - **Container**: [app/container.py](src/mispatch_finder/app/container.py) - DI container with Pydantic support
 - **Config**: [app/config.py](src/mispatch_finder/app/config.py) - Pydantic BaseSettings configuration models
-- **Main**: [app/main.py](src/mispatch_finder/app/main.py) - Facade functions (`analyze`, `list_vulnerabilities`, `clear`, `logs`)
 
 ### Core Layer
 - **Domain Models**: [core/domain/models.py](src/mispatch_finder/core/domain/models.py)
@@ -334,7 +366,7 @@ class Repository:
 - [tests/core/test_services.py](tests/mispatch_finder/core/test_services.py) - Service layer tests
 - [tests/core/test_usecases.py](tests/mispatch_finder/core/test_usecases.py) - UseCase tests with fakes
 - [tests/core/test_usecases_logs.py](tests/mispatch_finder/core/test_usecases_logs.py) - Logs UseCase scenarios
-- [tests/app/test_main_facade.py](tests/mispatch_finder/app/test_main_facade.py) - Facade function tests
+- [tests/app/test_main_e2e.py](tests/mispatch_finder/app/test_main_e2e.py) - E2E tests for CLI commands
 - [tests/app/conftest.py](tests/mispatch_finder/app/conftest.py) - Shared fixtures with mocks
 
 ## Development Workflow
@@ -411,10 +443,9 @@ Optional:
 
 1. **Adding New Commands**:
    - Create UseCase in `core/usecases/`
-   - Add facade function in `app/main.py` with `@with_container`
-   - Add CLI command in `app/cli.py`
-   - Export in `__init__.py`
-   - Add tests in `tests/app/test_main_facade.py` and `tests/core/test_usecases.py`
+   - Add CLI command function in `app/cli.py` (create Container, execute UseCase inline)
+   - Add E2E test in `tests/app/test_main_e2e.py` (replicate CLI pattern: create Container, execute UseCase)
+   - Add unit tests in `tests/core/test_usecases.py`
 
 2. **Adding New External Dependencies**:
    - Define Port in `core/ports.py`

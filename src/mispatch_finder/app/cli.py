@@ -10,8 +10,10 @@ from typing import cast
 import typer
 
 from .config import AppConfig
-from .main import analyze as analyze_main, clear, list_vulnerabilities, logs as logs_main
+from .container import Container
 from ..core.domain.models import Vulnerability
+from ..core.usecases.list import ListUseCase
+from ..infra.llm import LLM
 from ..shared.log_summary import summarize_logs
 
 try:
@@ -57,13 +59,24 @@ def analyze(
         typer.echo("Error: GitHub token required via MISPATCH_FINDER_GITHUB__TOKEN", err=True)
         raise typer.Exit(code=2)
 
-    # Call facade (config loaded from env automatically)
-    result = analyze_main(
-        ghsa=ghsa,
-        provider=provider,
-        model=model,
-        force_reclone=force_reclone,
-    )
+    # Create container and execute
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
+
+    # Override LLM config with CLI params
+    if provider or model:
+        llm = LLM(
+            provider=provider,
+            model=model,
+            api_key=config.llm.api_key,
+        )
+        orchestrator = container.analysis_orchestrator()
+        orchestrator._llm = llm
+
+    # Execute use case
+    uc = container.analyze_uc()
+    result = uc.execute(ghsa=ghsa, force_reclone=force_reclone)
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -84,15 +97,29 @@ def list_command(
     Use --no-filter to disable filtering entirely and show all vulnerabilities.
     Use --limit to restrict the number of results.
     """
-    # Handle filter logic: explicit filter > no_filter flag > default
-    if no_filter:
-        final_filter = ""
-    elif filter_expr is not None:
-        final_filter = filter_expr
-    else:
-        final_filter = None  # Use config default
+    # Create container
+    config = AppConfig()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
 
-    result = list_vulnerabilities(detailed=detailed, filter_expr=final_filter)
+    # Handle filter: None = use default, "" = no filter, otherwise = custom
+    if no_filter:
+        actual_filter = None
+    elif filter_expr is not None:
+        actual_filter = None if filter_expr == "" else filter_expr
+    else:
+        actual_filter = container.config.vulnerability.filter_expr()
+
+    # Create use case
+    uc = ListUseCase(
+        vuln_data=container.vuln_data(),
+        limit=10,
+        ecosystem=container.config.vulnerability.ecosystem(),
+        detailed=detailed,
+        filter_expr=actual_filter,
+    )
+    result = uc.execute()
 
     # Filter out already analyzed unless --all is specified
     if not all_items:
@@ -145,7 +172,16 @@ def list_command(
 def clear_command():
     """Clear local caches and CVE collector state."""
     typer.echo("Clearing caches...")
-    clear()
+
+    # Create container and execute
+    config = AppConfig()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
+
+    uc = container.clear_cache_uc()
+    uc.execute()
+
     typer.echo("Done.")
 
 
@@ -155,7 +191,15 @@ def logs(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed MCP call counts per tool."),
 ):
     """Show analysis logs - either for a specific GHSA or summary of all runs."""
-    lines = logs_main(ghsa, verbose)
+    # Create container and execute
+    config = AppConfig()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
+
+    uc = container.logs_uc()
+    lines = uc.execute(ghsa, verbose)
+
     for line in lines:
         typer.echo(line)
 
@@ -178,17 +222,32 @@ def batch(
       mispatch-finder batch --filter "severity == 'CRITICAL'"   # Only critical severity
       mispatch-finder batch --no-filter --limit 100              # Process all, up to 100
     """
-    # Handle filter logic
-    if no_filter:
-        final_filter = ""
-    elif filter_expr is not None:
-        final_filter = filter_expr
-    else:
-        final_filter = None  # Use config default
-
     # Fetch all vulnerabilities with detailed metadata (efficient single call)
     typer.echo("Fetching vulnerability list with metadata...")
-    result = list_vulnerabilities(detailed=True, filter_expr=final_filter)
+
+    # Create container
+    config = AppConfig()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
+
+    # Handle filter
+    if no_filter:
+        actual_filter = None
+    elif filter_expr is not None:
+        actual_filter = None if filter_expr == "" else filter_expr
+    else:
+        actual_filter = container.config.vulnerability.filter_expr()
+
+    # Fetch vulnerabilities
+    uc = ListUseCase(
+        vuln_data=container.vuln_data(),
+        limit=10,
+        ecosystem=container.config.vulnerability.ecosystem(),
+        detailed=True,
+        filter_expr=actual_filter,
+    )
+    result = uc.execute()
     vulns = cast(list[Vulnerability], result)
 
     config = AppConfig()
