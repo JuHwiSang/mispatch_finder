@@ -159,7 +159,7 @@ class Repository:
 
 6. **Main Facade Functions**
    - ~~`run_analysis()`~~ → `analyze()`
-   - ~~`list_ghsa_ids()`~~ → `list_ids()`
+   - ~~`list_ghsa_ids()`~~ → `list_vulnerabilities()`
    - ~~`clear_all_caches()`~~ → `clear()`
    - ~~`show_log()`~~ → `logs()`
 
