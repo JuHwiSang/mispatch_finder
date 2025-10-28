@@ -198,12 +198,8 @@ def mock_container_for_analyze(tmp_path, test_config, monkeypatch):
 
     monkeypatch.setattr(Tunnel, "start_tunnel", fake_start_tunnel)
 
-    # Patch _create_container to return mocked instance
-    def mocked_create_container(config=None):
-        cfg = config or test_config
-        return _create_mocked_container(tmp_path, repo_dir, c1, c2, cfg)
-
-    monkeypatch.setattr("mispatch_finder.app.main._create_container", mocked_create_container)
+    # Patch Container class to return mocked instance
+    monkeypatch.setattr("mispatch_finder.app.cli.Container", lambda: _create_mocked_container(tmp_path, repo_dir, c1, c2, test_config))
 
     return repo_dir, c1, c2
 
@@ -213,36 +209,33 @@ def mock_container_for_list(tmp_path, test_config, monkeypatch):
     """Fixture for list tests."""
     repo_dir, c1, c2 = create_test_repo(tmp_path)
 
-    def mocked_create_container(config=None):
-        cfg = config or test_config
+    def create_mock_container():
         c = Container()
-        c.config.from_pydantic(cfg)
+        c.config.from_pydantic(test_config)
         c.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
         return c
 
-    monkeypatch.setattr("mispatch_finder.app.main._create_container", mocked_create_container)
+    monkeypatch.setattr("mispatch_finder.app.cli.Container", create_mock_container)
 
 
 @pytest.fixture
 def mock_container_for_clear(tmp_path, test_config, monkeypatch):
     """Fixture for clear tests."""
-    def mocked_create_container(config=None):
-        cfg = config or test_config
+    def create_mock_container():
         c = Container()
-        c.config.from_pydantic(cfg)
+        c.config.from_pydantic(test_config)
         c.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
         return c
 
-    monkeypatch.setattr("mispatch_finder.app.main._create_container", mocked_create_container)
+    monkeypatch.setattr("mispatch_finder.app.cli.Container", create_mock_container)
 
 
 @pytest.fixture
 def mock_container_for_logs(tmp_path, test_config, monkeypatch):
     """Fixture for logs tests."""
-    def mocked_create_container(config=None):
-        cfg = config or test_config
+    def create_mock_container():
         c = Container()
-        c.config.from_pydantic(cfg)
+        c.config.from_pydantic(test_config)
         return c
 
-    monkeypatch.setattr("mispatch_finder.app.main._create_container", mocked_create_container)
+    monkeypatch.setattr("mispatch_finder.app.cli.Container", create_mock_container)

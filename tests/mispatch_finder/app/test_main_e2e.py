@@ -5,7 +5,6 @@ from pathlib import Path
 from git import Repo
 from dependency_injector import providers
 
-from mispatch_finder.app import main
 from mispatch_finder.app.config import (
     AppConfig,
     DirectoryConfig,
@@ -44,8 +43,8 @@ def _init_repo_with_two_commits(tmp_path: Path) -> tuple[Path, str, str]:
     return repo_dir, c1, c2
 
 
-def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
-    """E2E test: run_analysis with DI container overrides."""
+def test_analyze_end_to_end(tmp_path, monkeypatch):
+    """E2E test: analyze command with mocked dependencies."""
     base, c1, c2 = _init_repo_with_two_commits(tmp_path)
 
     # Mock Tunnel to avoid real network calls
@@ -67,11 +66,10 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
         analysis=AnalysisConfig(diff_max_chars=200_000),
     )
 
-    # Patch _create_container to return mocked instance
-    def mocked_create_container(config=None):
+    # Create mocked container
+    def create_mocked_container():
         container = Container()
-        cfg = config or test_config
-        container.config.from_pydantic(cfg)
+        container.config.from_pydantic(test_config)
 
         # Override with mocks
         container.vuln_data.override(
@@ -93,12 +91,10 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
 
         return container
 
-    monkeypatch.setattr("mispatch_finder.app.main._create_container", mocked_create_container)
-
-    result = main.analyze(
-        ghsa="GHSA-TEST-E2E",
-        force_reclone=True,
-    )
+    # Execute (mimics CLI implementation)
+    container = create_mocked_container()
+    uc = container.analyze_uc()
+    result = uc.execute(ghsa="GHSA-TEST-E2E", force_reclone=True)
 
     assert result["ghsa"] == "GHSA-TEST-E2E"
     assert result["raw_text"]
@@ -109,3 +105,115 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
     assert data["patch_risk"] == "good"
     assert data["current_risk"] == "good"
     assert data["reason"] == "Mock LLM response"
+
+
+def test_list_vulnerabilities(tmp_path):
+    """E2E test: list command returns vulnerability list."""
+    from mispatch_finder.core.usecases.list import ListUseCase
+
+    test_config = AppConfig(
+        directories=DirectoryConfig(home=tmp_path),
+        llm=LLMConfig(api_key="test-key", provider_name="openai", model_name="gpt-4"),
+        github=GitHubConfig(token="test-token"),
+        vulnerability=VulnerabilityConfig(ecosystem="npm"),
+        analysis=AnalysisConfig(diff_max_chars=200_000),
+    )
+
+    # Create container with mocked vuln_data
+    container = Container()
+    container.config.from_pydantic(test_config)
+    container.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
+
+    # Execute (mimics CLI implementation)
+    uc = ListUseCase(
+        vuln_data=container.vuln_data(),
+        limit=10,
+        ecosystem=container.config.vulnerability.ecosystem(),
+        detailed=False,
+        filter_expr=None,
+    )
+    result = uc.execute()
+
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert all(isinstance(ghsa, str) and ghsa.startswith("GHSA-") for ghsa in result)
+
+
+def test_clear_cache(tmp_path):
+    """E2E test: clear command clears caches."""
+    test_config = AppConfig(
+        directories=DirectoryConfig(home=tmp_path),
+        llm=LLMConfig(api_key="test-key", provider_name="openai", model_name="gpt-4"),
+        github=GitHubConfig(token="test-token"),
+        vulnerability=VulnerabilityConfig(ecosystem="npm"),
+        analysis=AnalysisConfig(diff_max_chars=200_000),
+    )
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(exist_ok=True)
+    (cache_dir / "test.txt").write_text("test", encoding="utf-8")
+
+    # Create container with mocked vuln_data
+    container = Container()
+    container.config.from_pydantic(test_config)
+    container.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
+
+    # Execute (mimics CLI implementation)
+    uc = container.clear_cache_uc()
+    uc.execute()  # Should not raise
+
+
+def test_logs_with_ghsa(tmp_path):
+    """E2E test: logs command returns log details for specific GHSA."""
+    test_config = AppConfig(
+        directories=DirectoryConfig(home=tmp_path),
+        llm=LLMConfig(api_key="test-key", provider_name="openai", model_name="gpt-4"),
+        github=GitHubConfig(token="test-token"),
+        vulnerability=VulnerabilityConfig(ecosystem="npm"),
+        analysis=AnalysisConfig(diff_max_chars=200_000),
+    )
+
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    log_file = logs_dir / "GHSA-TEST.jsonl"
+    log_file.write_text(
+        '{"message":"run_started","ghsa":"GHSA-TEST"}\n'
+        '{"message":"final_result","payload":{"type":"final_result","result":{"ghsa":"GHSA-TEST"}}}\n',
+        encoding="utf-8"
+    )
+
+    # Create container
+    container = Container()
+    container.config.from_pydantic(test_config)
+
+    # Execute (mimics CLI implementation)
+    uc = container.logs_uc()
+    result = uc.execute("GHSA-TEST", verbose=False)
+
+    assert isinstance(result, list)
+    assert len(result) > 0
+
+
+def test_logs_without_ghsa(tmp_path):
+    """E2E test: logs command returns summary when no GHSA provided."""
+    test_config = AppConfig(
+        directories=DirectoryConfig(home=tmp_path),
+        llm=LLMConfig(api_key="test-key", provider_name="openai", model_name="gpt-4"),
+        github=GitHubConfig(token="test-token"),
+        vulnerability=VulnerabilityConfig(ecosystem="npm"),
+        analysis=AnalysisConfig(diff_max_chars=200_000),
+    )
+
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    # Create container
+    container = Container()
+    container.config.from_pydantic(test_config)
+
+    # Execute (mimics CLI implementation)
+    uc = container.logs_uc()
+    result = uc.execute(None, verbose=False)
+
+    assert isinstance(result, list)
