@@ -6,6 +6,14 @@ from git import Repo
 from dependency_injector import providers
 
 from mispatch_finder.app import main
+from mispatch_finder.app.config import (
+    AppConfig,
+    DirectoryConfig,
+    LLMConfig,
+    GitHubConfig,
+    VulnerabilityConfig,
+    AnalysisConfig,
+)
 from mispatch_finder.app.container import Container
 from mispatch_finder.core.ports import MCPServerContext
 from mispatch_finder.infra.mcp.tunnel import Tunnel
@@ -46,12 +54,25 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Tunnel, "start_tunnel", fake_start_tunnel)
 
-    # Patch Container to return mocked instance
-    def mocked_container_class():
+    # Create test config
+    test_config = AppConfig(
+        directories=DirectoryConfig(home=tmp_path),
+        llm=LLMConfig(
+            api_key="test-key",
+            provider_name="openai",
+            model_name="gpt-4",
+        ),
+        github=GitHubConfig(token="test-token"),
+        vulnerability=VulnerabilityConfig(ecosystem="npm"),
+        analysis=AnalysisConfig(diff_max_chars=200_000),
+    )
+
+    # Patch _create_container to return mocked instance
+    def mocked_create_container(config=None):
         container = Container()
-        config = main._get_default_config()
-        container.config.from_dict(config)
-        
+        cfg = config or test_config
+        container.config.from_pydantic(cfg)
+
         # Override with mocks
         container.vuln_data.override(
             providers.Singleton(
@@ -69,10 +90,10 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
         )
         container.llm.override(providers.Factory(MockLLM))
         container.mcp_server.override(providers.Factory(MockMCPServer))
-        
+
         return container
 
-    monkeypatch.setattr("mispatch_finder.app.main.Container", mocked_container_class)
+    monkeypatch.setattr("mispatch_finder.app.main._create_container", mocked_create_container)
 
     result = main.analyze(
         ghsa="GHSA-TEST-E2E",
@@ -81,9 +102,9 @@ def test_run_analysis_end_to_end_with_local_repo(tmp_path, monkeypatch):
 
     assert result["ghsa"] == "GHSA-TEST-E2E"
     assert result["raw_text"]
-    
+
     data = json.loads(result["raw_text"]) if isinstance(result["raw_text"], str) else result["raw_text"]
-    
+
     assert isinstance(data, dict)
     assert data["patch_risk"] == "good"
     assert data["current_risk"] == "good"

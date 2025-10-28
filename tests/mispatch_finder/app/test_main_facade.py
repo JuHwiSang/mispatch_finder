@@ -1,7 +1,7 @@
 """Facade function tests for main module."""
 from pathlib import Path
 
-from mispatch_finder.app.main import analyze, list_ids, clear, logs
+from mispatch_finder.app.main import analyze, list_vulnerabilities, clear, logs
 
 
 def test_analyze_with_optional_params(mock_container_for_analyze):
@@ -10,25 +10,26 @@ def test_analyze_with_optional_params(mock_container_for_analyze):
         ghsa="GHSA-OPT-TEST",
         force_reclone=True,
     )
-    
+
     assert isinstance(result, dict)
     assert result["ghsa"] == "GHSA-OPT-TEST"
     assert result["raw_text"]
 
 
-def test_list_ids_returns_list(mock_container_for_list):
-    """Test that list_ids returns a list of GHSA IDs."""
-    result = list_ids()
-    
+def test_list_vulnerabilities_returns_list(mock_container_for_list):
+    """Test that list_vulnerabilities returns a list of GHSA IDs by default."""
+    result = list_vulnerabilities(detailed=False)
+
     assert isinstance(result, list)
     assert len(result) == 2
-    assert all(ghsa.startswith("GHSA-") for ghsa in result)
+    # Result should be list of strings (GHSA IDs)
+    assert all(isinstance(ghsa, str) and ghsa.startswith("GHSA-") for ghsa in result)
 
 
 def test_clear_executes(tmp_path, mock_container_for_clear):
     """Test that clear executes without error."""
     cache_dir = tmp_path / "cache"
-    cache_dir.mkdir()
+    cache_dir.mkdir(exist_ok=True)
     (cache_dir / "test.txt").write_text("test", encoding="utf-8")
 
     # Should not raise
@@ -38,7 +39,7 @@ def test_clear_executes(tmp_path, mock_container_for_clear):
 def test_logs_with_ghsa(tmp_path, mock_container_for_logs):
     """Test that logs returns log details for a GHSA."""
     logs_dir = tmp_path / "logs"
-    logs_dir.mkdir()
+    logs_dir.mkdir(exist_ok=True)
 
     log_file = logs_dir / "GHSA-TEST.jsonl"
     log_file.write_text(
@@ -56,7 +57,7 @@ def test_logs_with_ghsa(tmp_path, mock_container_for_logs):
 def test_logs_without_ghsa(tmp_path, mock_container_for_logs):
     """Test that logs returns summary table when no GHSA provided."""
     logs_dir = tmp_path / "logs"
-    logs_dir.mkdir()
+    logs_dir.mkdir(exist_ok=True)
 
     result = logs(None, verbose=False)
 
