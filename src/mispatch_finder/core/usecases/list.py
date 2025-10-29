@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..domain.models import Vulnerability
 from ..ports import VulnerabilityDataPort
 
 
@@ -19,7 +20,13 @@ class ListUseCase:
         self._detailed = detailed
         self._filter_expr = filter_expr
 
-    def execute(self) -> list[str]:
+    def execute(self) -> list[str] | list[Vulnerability]:
+        """Execute the use case.
+
+        Returns:
+            list[str]: GHSA IDs when detailed=False
+            list[Vulnerability]: Vulnerability objects when detailed=True
+        """
         return self._vuln_data.list_vulnerabilities(
             limit=self._limit,
             ecosystem=self._ecosystem,

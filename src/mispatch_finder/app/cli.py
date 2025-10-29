@@ -5,7 +5,6 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import cast
 
 import typer
 
@@ -111,41 +110,50 @@ def list_command(
     else:
         actual_filter = container.config.vulnerability.filter_expr()
 
-    # Create use case
-    uc = ListUseCase(
-        vuln_data=container.vuln_data(),
-        limit=10,
-        ecosystem=container.config.vulnerability.ecosystem(),
-        detailed=detailed,
-        filter_expr=actual_filter,
-    )
-    result = uc.execute()
-
     # Filter out already analyzed unless --all is specified
-    if not all_items:
-        config = AppConfig()
-        logs_dir = config.directories.logs_dir
-        summaries = summarize_logs(logs_dir, verbose=False)
-
-        if not detailed:
-            # Filter GHSA IDs
-            ghsa_ids = cast(list[str], result)
-            result = [ghsa for ghsa in ghsa_ids if ghsa not in summaries or not summaries[ghsa].done]
-        else:
-            # Filter Vulnerability objects
-            vulns = cast(list[Vulnerability], result)
-            result = [v for v in vulns if v.ghsa_id not in summaries or not summaries[v.ghsa_id].done]
-
-    # Apply limit if specified
-    if limit is not None:
-        result = result[:limit]
+    config = AppConfig()
+    logs_dir = config.directories.logs_dir
+    summaries = summarize_logs(logs_dir, verbose=False) if not all_items else {}
 
     if not detailed:
-        # Simple list of IDs
-        typer.echo(json.dumps({"items": result}, ensure_ascii=False, indent=2))
+        # Create use case with detailed=False -> returns list[str]
+        uc = ListUseCase(
+            vuln_data=container.vuln_data(),
+            limit=10,
+            ecosystem=container.config.vulnerability.ecosystem(),
+            detailed=False,
+            filter_expr=actual_filter,
+        )
+        ghsa_ids: list[str] = uc.execute()  # type: ignore[assignment]
+
+        # Filter out already analyzed
+        if not all_items:
+            ghsa_ids = [ghsa for ghsa in ghsa_ids if ghsa not in summaries or not summaries[ghsa].done]
+
+        # Apply limit if specified
+        if limit is not None:
+            ghsa_ids = ghsa_ids[:limit]
+
+        # Output simple list of IDs
+        typer.echo(json.dumps({"items": ghsa_ids}, ensure_ascii=False, indent=2))
     else:
-        # Detailed vulnerability information
-        vulns = cast(list[Vulnerability], result)
+        # Create use case with detailed=True -> returns list[Vulnerability]
+        uc = ListUseCase(
+            vuln_data=container.vuln_data(),
+            limit=10,
+            ecosystem=container.config.vulnerability.ecosystem(),
+            detailed=True,
+            filter_expr=actual_filter,
+        )
+        vulns: list[Vulnerability] = uc.execute()  # type: ignore[assignment]
+
+        # Filter out already analyzed
+        if not all_items:
+            vulns = [v for v in vulns if v.ghsa_id not in summaries or not summaries[v.ghsa_id].done]
+
+        # Apply limit if specified
+        if limit is not None:
+            vulns = vulns[:limit]
 
         # Convert to JSON-serializable format
         items = []
@@ -239,7 +247,7 @@ def batch(
     else:
         actual_filter = container.config.vulnerability.filter_expr()
 
-    # Fetch vulnerabilities
+    # Fetch vulnerabilities with detailed=True -> returns list[Vulnerability]
     uc = ListUseCase(
         vuln_data=container.vuln_data(),
         limit=10,
@@ -247,8 +255,7 @@ def batch(
         detailed=True,
         filter_expr=actual_filter,
     )
-    result = uc.execute()
-    vulns = cast(list[Vulnerability], result)
+    vulns: list[Vulnerability] = uc.execute()  # type: ignore[assignment]
 
     config = AppConfig()
     logs_dir = config.directories.logs_dir
