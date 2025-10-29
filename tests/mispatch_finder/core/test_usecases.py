@@ -198,9 +198,9 @@ def test_run_analysis_usecase_executes_full_flow():
 def test_list_usecase_ids_only():
     """Test listing vulnerabilities with detailed=False (IDs only)."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data, limit=500, ecosystem="npm", detailed=False)
+    uc = ListUseCase(vuln_data=vuln_data)
 
-    result = uc.execute()
+    result = uc.execute(limit=500, ecosystem="npm", detailed=False)
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
     assert vuln_data.listed == [(500, "npm", False, None)]
@@ -209,9 +209,9 @@ def test_list_usecase_ids_only():
 def test_list_usecase_custom_ecosystem():
     """Test listing with custom ecosystem."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data, limit=100, ecosystem="pypi", detailed=False)
+    uc = ListUseCase(vuln_data=vuln_data)
 
-    result = uc.execute()
+    result = uc.execute(limit=100, ecosystem="pypi", detailed=False)
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
     assert vuln_data.listed == [(100, "pypi", False, None)]
@@ -220,9 +220,9 @@ def test_list_usecase_custom_ecosystem():
 def test_list_usecase_detailed():
     """Test listing vulnerabilities with detailed=True (full metadata)."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data, limit=10, ecosystem="npm", detailed=True)
+    uc = ListUseCase(vuln_data=vuln_data)
 
-    result = cast(list[Vulnerability], uc.execute())
+    result = cast(list[Vulnerability], uc.execute(limit=10, ecosystem="npm", detailed=True))
 
     assert isinstance(result, list)
     assert len(result) == 2
@@ -239,15 +239,9 @@ def test_list_usecase_detailed():
 def test_list_usecase_with_filter():
     """Test listing with filter expression."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(
-        vuln_data=vuln_data,
-        limit=10,
-        ecosystem="npm",
-        detailed=True,
-        filter_expr="stars > 1000"
-    )
+    uc = ListUseCase(vuln_data=vuln_data)
 
-    result = uc.execute()
+    result = uc.execute(limit=10, ecosystem="npm", detailed=True, filter_expr="stars > 1000")
 
     assert isinstance(result, list)
     assert vuln_data.listed == [(10, "npm", True, "stars > 1000")]

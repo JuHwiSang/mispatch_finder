@@ -125,14 +125,13 @@ def test_list_vulnerabilities(tmp_path):
     container.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
 
     # Execute (mimics CLI implementation)
-    uc = ListUseCase(
-        vuln_data=container.vuln_data(),
+    uc = ListUseCase(vuln_data=container.vuln_data())
+    result = uc.execute(
         limit=10,
         ecosystem=container.config.vulnerability.ecosystem(),
         detailed=False,
         filter_expr=None,
     )
-    result = uc.execute()
 
     assert isinstance(result, list)
     assert len(result) == 2
