@@ -5,32 +5,38 @@ from ..ports import VulnerabilityDataPort
 
 
 class ListUseCase:
-    def __init__(
+    """Use case for listing vulnerabilities.
+
+    Separates DI concerns (dependencies) from runtime parameters.
+    """
+
+    def __init__(self, *, vuln_data: VulnerabilityDataPort) -> None:
+        self._vuln_data = vuln_data
+
+    def execute(
         self,
         *,
-        vuln_data: VulnerabilityDataPort,
         limit: int,
         ecosystem: str = "npm",
         detailed: bool = False,
         filter_expr: str | None = None,
-    ) -> None:
-        self._vuln_data = vuln_data
-        self._limit = limit
-        self._ecosystem = ecosystem
-        self._detailed = detailed
-        self._filter_expr = filter_expr
-
-    def execute(self) -> list[str] | list[Vulnerability]:
+    ) -> list[str] | list[Vulnerability]:
         """Execute the use case.
+
+        Args:
+            limit: Maximum number of items to return
+            ecosystem: Ecosystem filter (e.g., "npm", "pypi")
+            detailed: If True, return full Vulnerability objects; if False, return GHSA IDs only
+            filter_expr: Optional filter expression (e.g., "stars > 1000")
 
         Returns:
             list[str]: GHSA IDs when detailed=False
             list[Vulnerability]: Vulnerability objects when detailed=True
         """
         return self._vuln_data.list_vulnerabilities(
-            limit=self._limit,
-            ecosystem=self._ecosystem,
-            detailed=self._detailed,
-            filter_expr=self._filter_expr,
+            limit=limit,
+            ecosystem=ecosystem,
+            detailed=detailed,
+            filter_expr=filter_expr,
         )
 

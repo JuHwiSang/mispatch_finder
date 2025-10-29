@@ -110,21 +110,21 @@ def list_command(
     else:
         actual_filter = container.config.vulnerability.filter_expr()
 
+    # Create use case (only DI in __init__)
+    uc = ListUseCase(vuln_data=container.vuln_data())
+
     # Filter out already analyzed unless --all is specified
-    config = AppConfig()
     logs_dir = config.directories.logs_dir
     summaries = summarize_logs(logs_dir, verbose=False) if not all_items else {}
 
     if not detailed:
-        # Create use case with detailed=False -> returns list[str]
-        uc = ListUseCase(
-            vuln_data=container.vuln_data(),
+        # Execute with detailed=False -> returns list[str]
+        ghsa_ids: list[str] = uc.execute(
             limit=10,
             ecosystem=container.config.vulnerability.ecosystem(),
             detailed=False,
             filter_expr=actual_filter,
-        )
-        ghsa_ids: list[str] = uc.execute()  # type: ignore[assignment]
+        )  # type: ignore[assignment]
 
         # Filter out already analyzed
         if not all_items:
@@ -137,15 +137,13 @@ def list_command(
         # Output simple list of IDs
         typer.echo(json.dumps({"items": ghsa_ids}, ensure_ascii=False, indent=2))
     else:
-        # Create use case with detailed=True -> returns list[Vulnerability]
-        uc = ListUseCase(
-            vuln_data=container.vuln_data(),
+        # Execute with detailed=True -> returns list[Vulnerability]
+        vulns: list[Vulnerability] = uc.execute(
             limit=10,
             ecosystem=container.config.vulnerability.ecosystem(),
             detailed=True,
             filter_expr=actual_filter,
-        )
-        vulns: list[Vulnerability] = uc.execute()  # type: ignore[assignment]
+        )  # type: ignore[assignment]
 
         # Filter out already analyzed
         if not all_items:
@@ -248,14 +246,13 @@ def batch(
         actual_filter = container.config.vulnerability.filter_expr()
 
     # Fetch vulnerabilities with detailed=True -> returns list[Vulnerability]
-    uc = ListUseCase(
-        vuln_data=container.vuln_data(),
+    uc = ListUseCase(vuln_data=container.vuln_data())
+    vulns: list[Vulnerability] = uc.execute(
         limit=10,
         ecosystem=container.config.vulnerability.ecosystem(),
         detailed=True,
         filter_expr=actual_filter,
-    )
-    vulns: list[Vulnerability] = uc.execute()  # type: ignore[assignment]
+    )  # type: ignore[assignment]
 
     config = AppConfig()
     logs_dir = config.directories.logs_dir
