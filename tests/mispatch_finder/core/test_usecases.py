@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
-from typing import Optional
+from typing import Union, overload
+from typing import cast
 
 from mispatch_finder.core.ports import (
     VulnerabilityDataPort,
@@ -31,7 +32,31 @@ class FakeVulnRepo:
             commit_hash="abc123",
         )
 
-    def list_vulnerabilities(self, limit: int, ecosystem: str = "npm", detailed: bool = False, filter_expr: Optional[str] = None):
+    @overload
+    def list_vulnerabilities(
+        self,
+        limit: int,
+        ecosystem: str = "npm",
+        detailed: bool = False,
+        filter_expr: str | None = None
+    ) -> list[str]: ...
+
+    @overload
+    def list_vulnerabilities(
+        self,
+        limit: int,
+        ecosystem: str = "npm",
+        detailed: bool = True,
+        filter_expr: str | None = None
+    ) -> list[Vulnerability]: ...
+
+    def list_vulnerabilities(
+        self,
+        limit: int,
+        ecosystem: str = "npm",
+        detailed: bool = False,
+        filter_expr: str | None = None
+    ) -> Union[list[str], list[Vulnerability]]:
         self.listed.append((limit, ecosystem, detailed, filter_expr))
         if not detailed:
             return ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
@@ -55,12 +80,12 @@ class FakeVulnRepo:
                 ),
             ]
 
-    def clear_cache(self, prefix: Optional[str] = None) -> None:
+    def clear_cache(self, prefix: str | None = None) -> None:
         self.cache_cleared_with.append(prefix)
 
 
 class FakeRepo:
-    def prepare_workdirs(self, *, repo_url: str, commit: str, force_reclone: bool) -> tuple[Optional[Path], Optional[Path]]:
+    def prepare_workdirs(self, *, repo_url: str, commit: str, force_reclone: bool) -> tuple[Path | None, Path | None]:
         return Path("/fake/current"), Path("/fake/previous")
 
     def get_diff(self, *, workdir: Path, commit: str) -> str:
@@ -93,13 +118,13 @@ class FakeStore:
 
     def save(self, ghsa: str, payload: dict) -> None:
         self.saved.append((ghsa, payload))
-    
-    def load(self, ghsa: str) -> Optional[dict]:
+
+    def load(self, ghsa: str) -> dict | None:
         for saved_ghsa, saved_payload in self.saved:
             if saved_ghsa == ghsa:
                 return saved_payload
         return None
-    
+
     def list_all(self) -> list[dict]:
         return [payload for _, payload in self.saved]
 
@@ -197,7 +222,7 @@ def test_list_usecase_detailed():
     vuln_data = FakeVulnRepo()
     uc = ListUseCase(vuln_data=vuln_data, limit=10, ecosystem="npm", detailed=True)
 
-    result = uc.execute()
+    result = cast(list[Vulnerability], uc.execute())
 
     assert isinstance(result, list)
     assert len(result) == 2
