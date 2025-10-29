@@ -324,6 +324,74 @@ class Repository:
       - Tests replicate same pattern to test actual behavior
     - **Rationale**: No need for facades (used once) or test helpers (tests should test real code)
 
+### Phase 12: Type System Cleanup (2025-10)
+15. **Removed unnecessary cast() usage**
+    - **Problem**: Excessive `cast()` usage in CLI due to Union return types from `ListUseCase.execute()`
+    - **Analysis**: Python's type system cannot infer return type based on runtime parameter values
+      - `execute()` returns `list[str] | list[Vulnerability]` depending on `detailed` parameter
+      - Type checkers cannot track parameter value from constructor through to method return
+      - Attempted solutions: `@overload` with `Literal` types → Still insufficient for type inference
+    - **Solution**: Pragmatic approach with minimal type annotations
+      - **CLI**: Use explicit type annotations with `# type: ignore[assignment]` at call sites
+        ```python
+        ghsa_ids: list[str] = uc.execute(..., detailed=False)  # type: ignore[assignment]
+        vulns: list[Vulnerability] = uc.execute(..., detailed=True)  # type: ignore[assignment]
+        ```
+      - **Tests (Fake)**: Added `@overload` to `FakeVulnRepo.list_vulnerabilities()` matching Port signatures
+      - **Tests (UseCase)**: Used `cast()` only where type narrowing is needed for assertions
+    - **Changes**:
+      - **cli.py**: Removed `from typing import cast`, added type annotations at execute() calls
+      - **list.py**: Simplified to single Union return type with clear docstring
+      - **test_usecases.py**: Added `@overload` to FakeVulnRepo, used `cast()` for detailed tests
+      - **test_main_e2e.py**: Updated to new UseCase signature
+    - **Benefits**:
+      - ✅ **Cleaner code**: No cast() in production CLI code
+      - ✅ **Explicit intent**: Type annotations show what we expect at each call site
+      - ✅ **Pragmatic**: Accepts type system limitations, uses `type: ignore` only where needed
+    - **Rationale**: Type perfection not worth complexity; runtime correctness + clear intent > perfect static types
+
+### Phase 13: UseCase Parameter Refactoring (2025-10)
+16. **Separated DI dependencies from runtime parameters**
+    - **Problem**: `ListUseCase` mixed DI dependencies with runtime parameters in `__init__()`
+      - All parameters (vuln_data, limit, ecosystem, detailed, filter_expr) in constructor
+      - Required creating new UseCase instance for each different parameter set
+      - Violated Single Responsibility: constructor doing dependency injection AND configuration
+    - **Analysis**: Reviewed all UseCases for parameter placement
+      - ✅ `AnalyzeUseCase`: Already correct (DI in `__init__`, runtime in `execute`)
+      - ❌ `ListUseCase`: All parameters in `__init__`, empty `execute()`
+      - ✅ `ClearCacheUseCase`: Already correct
+      - ✅ `LogsUseCase`: Already correct
+    - **Solution**: Moved runtime parameters from `__init__` to `execute()`
+      - **Before**:
+        ```python
+        def __init__(self, *, vuln_data, limit, ecosystem, detailed, filter_expr): ...
+        def execute(self) -> list[str] | list[Vulnerability]: ...
+        ```
+      - **After**:
+        ```python
+        def __init__(self, *, vuln_data): ...  # DI only
+        def execute(self, *, limit, ecosystem, detailed, filter_expr) -> ...: ...  # Runtime params
+        ```
+    - **Changes**:
+      - **core/usecases/list.py**:
+        - Moved limit, ecosystem, detailed, filter_expr to `execute()` signature
+        - Added comprehensive docstring with parameter descriptions
+      - **app/cli.py**:
+        - `list_command()`: Create UseCase once, call execute() with parameters
+        - `batch()`: Same pattern update
+      - **Tests**: Updated all test cases to new signature
+        - `test_usecases.py`: 4 tests updated
+        - `test_main_e2e.py`: 1 test updated
+    - **Benefits**:
+      - ✅ **Reusability**: Single UseCase instance can be called multiple times with different params
+      - ✅ **Clear separation**: DI concerns vs. business parameters
+      - ✅ **Testability**: Easier to test different parameter combinations
+      - ✅ **Consistency**: All UseCases now follow same pattern
+    - **Design Principle**:
+      - `__init__` = Dependencies (Ports, Services) injected via DI
+      - `execute()` = Business parameters that change per invocation
+    - **Impact**: Updated 5 files (1 UseCase, 1 CLI, 3 test files)
+
 ## Key Files & Locations
 
 ### Application Layer
