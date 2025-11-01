@@ -86,18 +86,18 @@ def analyze(
 
 @app.command(name="list")
 def list_command(
-    detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed vulnerability information"),
+    detail: bool = typer.Option(False, "--detail", "-d", help="Show detailed vulnerability information"),
     filter_expr: str | None = typer.Option(None, "--filter", "-f", help="Filter expression (use empty string '' to disable default filter)"),
     no_filter: bool = typer.Option(False, "--no-filter", help="Disable default filter (show all vulnerabilities)"),
-    all_items: bool = typer.Option(False, "--all", "-a", help="Include already analyzed vulnerabilities"),
+    include_analyzed: bool = typer.Option(False, "--include-analyzed", "-i", help="Include already analyzed vulnerabilities"),
     limit: int | None = typer.Option(None, "--limit", "-n", help="Limit number of results"),
     json_output: bool = typer.Option(False, "--json", help="Output result as JSON"),
 ):
     """List available vulnerabilities from the database.
 
     By default, shows only unanalyzed GHSA IDs with default filter applied (stars>=100, size<=10MB).
-    Use --all to include already analyzed vulnerabilities.
-    Use --detailed to include full metadata.
+    Use --include-analyzed to include already analyzed vulnerabilities.
+    Use --detail to include full metadata.
     Use --filter to override the default filter (e.g., 'stars > 1000 and severity == "CRITICAL"').
     Use --no-filter to disable filtering entirely and show all vulnerabilities.
     Use --limit to restrict the number of results.
@@ -121,13 +121,13 @@ def list_command(
     items = uc.execute(
         limit=limit,
         ecosystem=container.config.vulnerability.ecosystem(),
-        detailed=detailed,
+        detailed=detail,
         filter_expr=actual_filter,
-        include_analyzed=all_items,
+        include_analyzed=include_analyzed,
     )
 
     # Output results
-    if not detailed:
+    if not detail:
         # Execute with detailed=False -> returns list[str]
         ghsa_ids: list[str] = uc.execute(
             limit=10,
