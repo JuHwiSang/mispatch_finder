@@ -10,6 +10,7 @@ import typer
 
 from .config import AppConfig
 from .container import Container
+from .cli_formatter import format_analyze_result, format_vulnerability_list
 from ..core.domain.models import Vulnerability
 from ..infra.llm import LLM
 
@@ -29,6 +30,7 @@ def analyze(
     model: str = typer.Option("gpt-5", '--model', help="Model name"),
     log_level: str = typer.Option("INFO", '--log-level', help="Log level", case_sensitive=False),
     force_reclone: bool = typer.Option(False, '--force-reclone', help="Force re-clone repo cache"),
+    json_output: bool = typer.Option(False, '--json', help="Output result as JSON"),
 ):
     """Analyze a single GHSA vulnerability for potential mispatches."""
     # Configure basic logging for internal debugging
@@ -74,7 +76,12 @@ def analyze(
     # Execute use case
     uc = container.analyze_uc()
     result = uc.execute(ghsa=ghsa, force_reclone=force_reclone)
-    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+    # Output in requested format
+    if json_output:
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(format_analyze_result(result))
 
 
 @app.command(name="list")
@@ -84,6 +91,7 @@ def list_command(
     no_filter: bool = typer.Option(False, "--no-filter", help="Disable default filter (show all vulnerabilities)"),
     all_items: bool = typer.Option(False, "--all", "-a", help="Include already analyzed vulnerabilities"),
     limit: int | None = typer.Option(None, "--limit", "-n", help="Limit number of results"),
+    json_output: bool = typer.Option(False, "--json", help="Output result as JSON"),
 ):
     """List available vulnerabilities from the database.
 
@@ -120,31 +128,45 @@ def list_command(
 
     # Output results
     if not detailed:
-        # items is list[str]
-        ghsa_ids: list[str] = items  # type: ignore[assignment]
-        typer.echo(json.dumps({"items": ghsa_ids}, ensure_ascii=False, indent=2))
+        # Execute with detailed=False -> returns list[str]
+        ghsa_ids: list[str] = uc.execute(
+            limit=10,
+            ecosystem=container.config.vulnerability.ecosystem(),
+            detailed=False,
+            filter_expr=actual_filter,
+        )  # type: ignore[assignment]
+
+        # Output in requested format
+        if json_output:
+            typer.echo(json.dumps({"items": ghsa_ids}, ensure_ascii=False, indent=2))
+        else:
+            typer.echo(format_vulnerability_list(ghsa_ids=ghsa_ids))
     else:
         # items is list[Vulnerability]
         vulns: list[Vulnerability] = items  # type: ignore[assignment]
 
-        # Convert to JSON-serializable format
-        items_dict = []
-        for v in vulns:
-            items_dict.append({
-                "ghsa_id": v.ghsa_id,
-                "cve_id": v.cve_id,
-                "severity": v.severity,
-                "summary": v.summary,
-                "repository": {
-                    "owner": v.repository.owner,
-                    "name": v.repository.name,
-                    "ecosystem": v.repository.ecosystem,
-                    "stars": v.repository.star_count,
-                    "size_kb": v.repository.size_kb,
-                },
-                "commit_hash": v.commit_hash,
-            })
-        typer.echo(json.dumps({"count": len(items_dict), "vulnerabilities": items_dict}, ensure_ascii=False, indent=2))
+        # Output in requested format
+        if json_output:
+            # Convert to JSON-serializable format
+            items = []
+            for v in vulns:
+                items.append({
+                    "ghsa_id": v.ghsa_id,
+                    "cve_id": v.cve_id,
+                    "severity": v.severity,
+                    "summary": v.summary,
+                    "repository": {
+                        "owner": v.repository.owner,
+                        "name": v.repository.name,
+                        "ecosystem": v.repository.ecosystem,
+                        "stars": v.repository.star_count,
+                        "size_kb": v.repository.size_kb,
+                    },
+                    "commit_hash": v.commit_hash,
+                })
+            typer.echo(json.dumps({"count": len(items), "vulnerabilities": items}, ensure_ascii=False, indent=2))
+        else:
+            typer.echo(format_vulnerability_list(vulnerabilities=vulns))
 
 
 
