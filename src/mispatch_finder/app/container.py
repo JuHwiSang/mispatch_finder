@@ -101,8 +101,7 @@ class Container(containers.DeclarativeContainer):
     list_uc = providers.Factory(
         ListUseCase,
         vuln_data=vuln_data,
-        limit=10,  # Default list limit
-        ecosystem=config.vulnerability.ecosystem,
+        logs_dir=config.directories.logs_dir,
     )
 
     clear_cache_uc = providers.Factory(

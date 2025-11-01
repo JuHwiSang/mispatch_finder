@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from pathlib import Path
-from typing import Protocol, Optional, Dict, Any, Union, overload
+from typing import Protocol, Optional, Dict, Any, Union, overload, Iterator
 from dataclasses import dataclass
 
 from .domain.models import Vulnerability
@@ -67,6 +67,28 @@ class VulnerabilityDataPort(Protocol):
         Returns:
             list[str] if detailed=False (GHSA IDs only)
             list[Vulnerability] if detailed=True (full domain models)
+        """
+        ...
+
+    def list_vulnerabilities_iter(
+        self,
+        ecosystem: str = "npm",
+        detailed: bool = False,
+        filter_expr: Optional[str] = None,
+    ) -> Iterator[str] | Iterator[Vulnerability]:
+        """Iterate over vulnerabilities lazily.
+
+        Args:
+            ecosystem: Ecosystem to filter by (npm, pypi, go, etc.)
+            detailed: If True, yield full Vulnerability objects; if False, yield GHSA IDs only
+            filter_expr: Optional asteval filter expression (e.g., "stars > 1000 and severity == 'CRITICAL'")
+                        Available variables: ghsa_id, cve_id, has_cve, severity, summary, description,
+                        published_at, modified_at, ecosystem, repo_slug, stars, size_bytes,
+                        repo_count, commit_count, poc_count
+
+        Yields:
+            str if detailed=False (GHSA IDs)
+            Vulnerability if detailed=True (full domain models)
         """
         ...
 

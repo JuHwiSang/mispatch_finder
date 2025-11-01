@@ -11,9 +11,7 @@ import typer
 from .config import AppConfig
 from .container import Container
 from ..core.domain.models import Vulnerability
-from ..core.usecases.list import ListUseCase
 from ..infra.llm import LLM
-from ..shared.log_summary import summarize_logs
 
 try:
     from dotenv import load_dotenv
@@ -110,53 +108,29 @@ def list_command(
     else:
         actual_filter = container.config.vulnerability.filter_expr()
 
-    # Create use case (only DI in __init__)
-    uc = ListUseCase(vuln_data=container.vuln_data())
+    # Execute use case (business logic is now in UseCase)
+    uc = container.list_uc()
+    items = uc.execute(
+        limit=limit,
+        ecosystem=container.config.vulnerability.ecosystem(),
+        detailed=detailed,
+        filter_expr=actual_filter,
+        include_analyzed=all_items,
+    )
 
-    # Filter out already analyzed unless --all is specified
-    logs_dir = config.directories.logs_dir
-    summaries = summarize_logs(logs_dir, verbose=False) if not all_items else {}
-
+    # Output results
     if not detailed:
-        # Execute with detailed=False -> returns list[str]
-        ghsa_ids: list[str] = uc.execute(
-            limit=10,
-            ecosystem=container.config.vulnerability.ecosystem(),
-            detailed=False,
-            filter_expr=actual_filter,
-        )  # type: ignore[assignment]
-
-        # Filter out already analyzed
-        if not all_items:
-            ghsa_ids = [ghsa for ghsa in ghsa_ids if ghsa not in summaries or not summaries[ghsa].done]
-
-        # Apply limit if specified
-        if limit is not None:
-            ghsa_ids = ghsa_ids[:limit]
-
-        # Output simple list of IDs
+        # items is list[str]
+        ghsa_ids: list[str] = items  # type: ignore[assignment]
         typer.echo(json.dumps({"items": ghsa_ids}, ensure_ascii=False, indent=2))
     else:
-        # Execute with detailed=True -> returns list[Vulnerability]
-        vulns: list[Vulnerability] = uc.execute(
-            limit=10,
-            ecosystem=container.config.vulnerability.ecosystem(),
-            detailed=True,
-            filter_expr=actual_filter,
-        )  # type: ignore[assignment]
-
-        # Filter out already analyzed
-        if not all_items:
-            vulns = [v for v in vulns if v.ghsa_id not in summaries or not summaries[v.ghsa_id].done]
-
-        # Apply limit if specified
-        if limit is not None:
-            vulns = vulns[:limit]
+        # items is list[Vulnerability]
+        vulns: list[Vulnerability] = items  # type: ignore[assignment]
 
         # Convert to JSON-serializable format
-        items = []
+        items_dict = []
         for v in vulns:
-            items.append({
+            items_dict.append({
                 "ghsa_id": v.ghsa_id,
                 "cve_id": v.cve_id,
                 "severity": v.severity,
@@ -170,7 +144,7 @@ def list_command(
                 },
                 "commit_hash": v.commit_hash,
             })
-        typer.echo(json.dumps({"count": len(items), "vulnerabilities": items}, ensure_ascii=False, indent=2))
+        typer.echo(json.dumps({"count": len(items_dict), "vulnerabilities": items_dict}, ensure_ascii=False, indent=2))
 
 
 
@@ -249,26 +223,15 @@ def batch(
     else:
         actual_filter = container.config.vulnerability.filter_expr()
 
-    # Fetch vulnerabilities with detailed=True -> returns list[Vulnerability]
-    uc = ListUseCase(vuln_data=container.vuln_data())
-    vulns: list[Vulnerability] = uc.execute(
-        limit=10,
+    # Fetch pending vulnerabilities (business logic is now in UseCase)
+    uc = container.list_uc()
+    candidates: list[Vulnerability] = uc.execute(
+        limit=limit,
         ecosystem=container.config.vulnerability.ecosystem(),
         detailed=True,
         filter_expr=actual_filter,
+        include_analyzed=False,  # Only fetch pending (not yet analyzed)
     )  # type: ignore[assignment]
-
-    config = AppConfig()
-    logs_dir = config.directories.logs_dir
-    summaries = summarize_logs(logs_dir, verbose=False)
-
-    # Filter out already completed IDs
-    candidates = []
-    for vuln in vulns:
-        ghsa = vuln.ghsa_id
-        s = summaries.get(ghsa)
-        if s is None or not s.done:
-            candidates.append(vuln)
 
     if not candidates:
         typer.echo("No pending GHSA IDs to run.")
