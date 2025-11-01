@@ -11,6 +11,7 @@ from mispatch_finder.core.ports import (
     ResultStorePort,
     TokenGeneratorPort,
     MCPServerContext,
+    LogStorePort,
 )
 from mispatch_finder.core.domain.models import Vulnerability, Repository
 from mispatch_finder.core.usecases.analyze import AnalyzeUseCase
@@ -137,6 +138,20 @@ class FakeMCP:
         return ctx
 
 
+class FakeLogStore:
+    def __init__(self, analyzed_ids: set[str] | None = None):
+        self.analyzed_ids = analyzed_ids or set()
+
+    def read_log(self, ghsa: str, verbose: bool) -> list[str]:
+        return ["fake log output"]
+
+    def summarize_all(self, verbose: bool) -> list[str]:
+        return ["fake summary"]
+
+    def get_analyzed_ids(self) -> set[str]:
+        return self.analyzed_ids
+
+
 class FakeLLM:
     def call(self, *, prompt: str, mcp_url: str, mcp_token: str) -> str:
         return '{"patch_risk":"good","current_risk":"good","reason":"test","poc":"test poc"}'
@@ -225,13 +240,12 @@ def test_run_analysis_usecase_executes_full_flow():
     assert mcp.cleanup_called
 
 
-def test_list_usecase_ids_only(tmp_path):
+def test_list_usecase_ids_only():
     """Test listing vulnerabilities with detailed=False (IDs only)."""
     vuln_data = FakeVulnRepo()
-    logs_dir = tmp_path / "logs"
-    logs_dir.mkdir()
+    log_store = FakeLogStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
 
     result = uc.execute(limit=500, ecosystem="npm", detailed=False, include_analyzed=True)
 
@@ -242,13 +256,12 @@ def test_list_usecase_ids_only(tmp_path):
     assert vuln_data.listed_iter[0][1] == False  # detailed
 
 
-def test_list_usecase_custom_ecosystem(tmp_path):
+def test_list_usecase_custom_ecosystem():
     """Test listing with custom ecosystem."""
     vuln_data = FakeVulnRepo()
-    logs_dir = tmp_path / "logs"
-    logs_dir.mkdir()
+    log_store = FakeLogStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
 
     result = uc.execute(limit=100, ecosystem="pypi", detailed=False, include_analyzed=True)
 
@@ -257,13 +270,12 @@ def test_list_usecase_custom_ecosystem(tmp_path):
     assert vuln_data.listed_iter[0][0] == "pypi"  # ecosystem
 
 
-def test_list_usecase_detailed(tmp_path):
+def test_list_usecase_detailed():
     """Test listing vulnerabilities with detailed=True (full metadata)."""
     vuln_data = FakeVulnRepo()
-    logs_dir = tmp_path / "logs"
-    logs_dir.mkdir()
+    log_store = FakeLogStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
 
     result = cast(list[Vulnerability], uc.execute(limit=10, ecosystem="npm", detailed=True, include_analyzed=True))
 
@@ -280,19 +292,33 @@ def test_list_usecase_detailed(tmp_path):
     assert vuln_data.listed_iter[0][1] == True  # detailed
 
 
-def test_list_usecase_with_filter(tmp_path):
+def test_list_usecase_with_filter():
     """Test listing with filter expression."""
     vuln_data = FakeVulnRepo()
-    logs_dir = tmp_path / "logs"
-    logs_dir.mkdir()
+    log_store = FakeLogStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
 
     result = uc.execute(limit=10, ecosystem="npm", detailed=True, filter_expr="stars > 1000", include_analyzed=True)
 
     assert isinstance(result, list)
     assert len(vuln_data.listed_iter) == 1
     assert vuln_data.listed_iter[0][2] == "stars > 1000"  # filter_expr
+
+
+def test_list_usecase_excludes_analyzed():
+    """Test that analyzed vulnerabilities are excluded when include_analyzed=False."""
+    vuln_data = FakeVulnRepo()
+    # Mark GHSA-1111-2222-3333 as analyzed
+    log_store = FakeLogStore(analyzed_ids={"GHSA-1111-2222-3333"})
+
+    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
+
+    result = uc.execute(limit=10, ecosystem="npm", detailed=False, include_analyzed=False)
+
+    # Should only return GHSA-4444-5555-6666 (not analyzed)
+    assert result == ["GHSA-4444-5555-6666"]
+    assert len(vuln_data.listed_iter) == 1
 
 
 @pytest.mark.skip(reason="clear command disabled - TODO: fix resource conflicts and define clear semantics")

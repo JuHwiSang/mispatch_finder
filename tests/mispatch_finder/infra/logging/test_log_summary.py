@@ -1,5 +1,5 @@
 from pathlib import Path
-from mispatch_finder.shared.log_summary import parse_log_details, format_single_summary
+from mispatch_finder.infra.logging.log_summary import parse_log_details, format_single_summary
 
 
 def test_parse_log_details_empty(tmp_path):
