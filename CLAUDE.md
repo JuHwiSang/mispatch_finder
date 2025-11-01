@@ -525,3 +525,111 @@ Optional:
    - Modify `core/services/` classes, not UseCases
    - Keep UseCases thin (orchestration only)
    - Update corresponding tests in `tests/core/test_services.py`
+
+## Recent Changes (2025-11-01)
+
+### Phase 17: cve_collector Breaking Changes (2025-11-01)
+**Status**: ✅ Completed
+
+**Changes**:
+- Updated to `cve_collector` v2.0+ with `CveCollectorClient` class-based API
+- **VulnerabilityDataAdapter** ([infra/vulnerability_data.py](src/mispatch_finder/infra/vulnerability_data.py)):
+  - Now uses `CveCollectorClient` instead of module-level functions
+  - `__init__` accepts `cache_dir`, `github_cache_ttl_days`, `osv_cache_ttl_days`
+  - Removed `_ensure_token()` (client handles auth internally)
+  - All methods (`fetch_metadata`, `list_vulnerabilities`, `clear_cache`) now call client methods
+- **Container** ([app/container.py](src/mispatch_finder/app/container.py)):
+  - Added `cache_dir` injection to `vuln_data` provider
+- **Tests** ([tests/infra/test_vulnerability_data.py](tests/mispatch_finder/infra/test_vulnerability_data.py)):
+  - Removed `test_vulnerability_repository_sets_env_token` (no longer applicable)
+  - Updated assertions to match new API
+
+**Impact**:
+- ✅ No environment variable pollution (`GITHUB_TOKEN` no longer set in `os.environ`)
+- ✅ Cache directory configuration centralized
+- ✅ Client-managed state (cleaner interface)
+
+### Phase 18: clear Command Disabled (2025-11-01)
+**Status**: ⏸️ Temporarily Disabled - TODO for future
+
+**Problem**:
+1. **Resource conflict**: `cve_collector` client holds lock on `cache_dir`, preventing clear operation
+2. **Unclear semantics**: Need to define what should be cleared:
+   - Vulnerability data cache (`cve_collector` cache)
+   - Repository clones (`cache/repos/`)
+   - Analysis results (`results/`)
+   - Analysis logs (`logs/`)
+
+**Changes**:
+- **CLI** ([app/cli.py](src/mispatch_finder/app/cli.py)): `clear_command()` commented out with TODO
+- **Tests**: All `clear`-related tests marked with `@pytest.mark.skip`:
+  - `test_cli_clear_executes()` in test_cli.py
+  - `test_cli_clear_executes()` in test_cli_commands.py
+  - `test_clear_cache()` in test_main_e2e.py
+  - `test_clear_cache_usecase()` in test_usecases.py
+  - `test_clear_cache_usecase_with_prefix()` in test_usecases.py
+
+**TODO (Future Work)**:
+1. Define clear command semantics:
+   - Add subcommands: `mispatch-finder clear cache`, `mispatch-finder clear repos`, `mispatch-finder clear results`, etc.
+   - Or add flags: `--cache`, `--repos`, `--results`, `--logs`, `--all`
+2. Fix resource conflicts:
+   - Separate cache directories for vuln_data and repos
+   - Or implement proper lifecycle management (close client before clearing)
+3. Re-enable command and tests once semantics are defined and conflicts resolved
+
+## Active TODOs and Stashed Work
+
+### Stashed Changes
+**Note**: When completing stashed work, remove the corresponding section from this file.
+
+1. **Stash 1: CLI Human-Readable Output** (git stash)
+   - **What**: Convert CLI JSON output to human-readable format
+   - **Files**:
+     - Created `app/cli_formatter.py` with `format_analyze_result()` and `format_vulnerability_list()`
+     - Updated `cli.py`: Added `--json` flag to `analyze` and `list` commands
+     - Default output: Human-readable text; `--json` flag: JSON output
+   - **Tests**: Created `tests/app/test_cli_formatter.py`
+   - **Status**: Fully implemented, just needs to be unstashed and committed
+
+2. **Stash 2: ListUseCase Filtering Logic** (may be partially stashed)
+   - **What**: Move analyzed-item filtering logic from CLI to UseCase
+   - **Current State**:
+     - ListUseCase was modified to accept `logs_dir` and `include_analyzed` parameter
+     - Progressive fetching with exponential backoff implemented
+     - Tests updated
+   - **Note**: This may have been partially unstashed. Verify current state before proceeding.
+
+### Active TODOs
+**When completing these, remove from this list and document in "Recent Changes" above.**
+
+1. **TODO: Fix ListUseCase for new cve_collector signature**
+   - **Issue**: `ListUseCase` currently reverted to simple implementation (stashed changes lost)
+   - **Required**: Re-implement progressive fetching logic:
+     ```python
+     # Fetch 1x limit, if not enough → 2x, if not enough → 4x, up to 10x
+     # This handles cases where most items are already analyzed
+     ```
+   - **Files**: `core/usecases/list.py`, tests
+
+2. **TODO: Re-enable clear command** (see Phase 18 above)
+   - Define semantics
+   - Fix resource conflicts
+   - Re-enable tests
+
+3. **TODO: Extract default limit (10) to config**
+   - Currently hardcoded in `ListUseCase.execute()`
+   - Should come from `AppConfig` (new field: `list_default_limit`)
+
+### Git Stash Management
+To view stashed changes:
+```bash
+git stash list
+git stash show -p stash@{0}  # View specific stash
+```
+
+To apply stashed changes:
+```bash
+git stash pop  # Apply and remove latest stash
+git stash apply stash@{N}  # Apply specific stash without removing
+```
