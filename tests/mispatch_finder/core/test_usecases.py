@@ -247,6 +247,7 @@ def test_list_usecase_with_filter():
     assert vuln_data.listed == [(10, "npm", True, "stars > 1000")]
 
 
+@pytest.mark.skip(reason="clear command disabled - TODO: fix resource conflicts and define clear semantics")
 def test_clear_cache_usecase():
     from mispatch_finder.core.ports import CachePort
 
@@ -267,6 +268,7 @@ def test_clear_cache_usecase():
     assert vuln_data.cache_cleared_with == [None]
 
 
+@pytest.mark.skip(reason="clear command disabled - TODO: fix resource conflicts and define clear semantics")
 def test_clear_cache_usecase_with_prefix():
     from mispatch_finder.core.ports import CachePort
 

@@ -174,21 +174,25 @@ def list_command(
 
 
 
-@app.command(name="clear")
-def clear_command():
-    """Clear local caches and CVE collector state."""
-    typer.echo("Clearing caches...")
-
-    # Create container and execute
-    config = AppConfig()
-    container = Container()
-    container.config.from_pydantic(config)
-    container.init_resources()
-
-    uc = container.clear_cache_uc()
-    uc.execute()
-
-    typer.echo("Done.")
+# TODO: Re-enable after properly defining clear semantics and fixing resource conflicts
+# Currently disabled due to:
+# 1. Resource conflict: cve_collector client holds cache_dir lock
+# 2. Unclear semantics: need to define what to clear (vuln_data cache, repo cache, results, logs?)
+# @app.command(name="clear")
+# def clear_command():
+#     """Clear local caches and CVE collector state."""
+#     typer.echo("Clearing caches...")
+#
+#     # Create container and execute
+#     config = AppConfig()
+#     container = Container()
+#     container.config.from_pydantic(config)
+#     container.init_resources()
+#
+#     uc = container.clear_cache_uc()
+#     uc.execute()
+#
+#     typer.echo("Done.")
 
 
 @app.command()

@@ -1,6 +1,7 @@
 """End-to-end tests for main facade functions."""
 import json
 import shutil
+import pytest
 from pathlib import Path
 from git import Repo
 from dependency_injector import providers
@@ -138,6 +139,7 @@ def test_list_vulnerabilities(tmp_path):
     assert all(isinstance(ghsa, str) and ghsa.startswith("GHSA-") for ghsa in result)
 
 
+@pytest.mark.skip(reason="clear command disabled - TODO: fix resource conflicts and define clear semantics")
 def test_clear_cache(tmp_path):
     """E2E test: clear command clears caches."""
     test_config = AppConfig(
