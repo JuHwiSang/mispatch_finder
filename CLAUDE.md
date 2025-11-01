@@ -18,9 +18,9 @@ src/mispatch_finder/
 │   └── ports.py           # Port Interfaces (Dependency Inversion)
 ├── infra/                 # Infrastructure Layer (Adapters)
 │   ├── llm_adapters/      # LLM Provider Adapters (OpenAI, Anthropic)
-│   ├── logging/           # Structured Logging
+│   ├── logging/           # Structured Logging & Log Parsing
 │   └── mcp/              # Model Context Protocol Servers
-└── shared/                # Shared Utilities
+└── shared/                # Shared Utilities (non-infra)
 ```
 
 ## Key Design Principles
@@ -421,8 +421,10 @@ class Repository:
   - [anthropic_adapter.py](src/mispatch_finder/infra/llm_adapters/anthropic_adapter.py) - Anthropic Messages API
   - [factory.py](src/mispatch_finder/infra/llm_adapters/factory.py) - Adapter factory (get_adapter)
 - **MCP Server**: [infra/mcp_server.py](src/mispatch_finder/infra/mcp_server.py) - MCP server management
-- **Logging**: [infra/logging/](src/mispatch_finder/infra/logging/) - Structured logging components
-- **Stores**: [infra/store.py](src/mispatch_finder/infra/store.py), [infra/log_store.py](src/mispatch_finder/infra/log_store.py)
+- **Logging**: [infra/logging/](src/mispatch_finder/infra/logging/) - Structured logging & log parsing
+  - [analysis_logger.py](src/mispatch_finder/infra/logging/analysis_logger.py) - Structured JSON logging
+  - [log_summary.py](src/mispatch_finder/infra/logging/log_summary.py) - Log parsing & summarization
+- **Stores**: [infra/result_store.py](src/mispatch_finder/infra/result_store.py), [infra/log_store.py](src/mispatch_finder/infra/log_store.py)
 
 ## Testing Strategy
 
@@ -432,9 +434,10 @@ class Repository:
 
 ### Key Test Files
 - [tests/core/test_services.py](tests/mispatch_finder/core/test_services.py) - Service layer tests
-- [tests/core/test_usecases.py](tests/mispatch_finder/core/test_usecases.py) - UseCase tests with fakes
+- [tests/core/test_usecases.py](tests/mispatch_finder/core/test_usecases.py) - UseCase tests with fakes (includes `FakeLogStore`)
 - [tests/core/test_usecases_logs.py](tests/mispatch_finder/core/test_usecases_logs.py) - Logs UseCase scenarios
-- [tests/app/test_main_e2e.py](tests/mispatch_finder/app/test_main_e2e.py) - E2E tests for CLI commands
+- [tests/infra/logging/test_log_summary.py](tests/mispatch_finder/infra/logging/test_log_summary.py) - Log parsing tests
+- [tests/app/cli/](tests/mispatch_finder/app/cli/) - CLI command tests by command
 - [tests/app/conftest.py](tests/mispatch_finder/app/conftest.py) - Shared fixtures with mocks
 
 ## Development Workflow
@@ -754,6 +757,57 @@ Optional:
 - ✅ **Easy to find**: Test location matches command name
 - ✅ **Comprehensive coverage**: All CLI options tested
 - ✅ **Maintainable**: Easier to add tests for new options
+
+### Phase 24: Log Summary Infrastructure Refactoring (2025-11-02)
+**Status**: ✅ Completed
+
+**Problem**:
+- `log_summary.py` was in `shared/` directory - not appropriate for infra code
+- `ListUseCase` directly imported and called `summarize_logs()` function - bypassing DI
+- No clear separation between log parsing utilities and business logic
+
+**Solution**: Moved to `infra/logging/` and applied DI pattern
+
+**Changes**:
+1. **File Structure**:
+   - Moved `src/mispatch_finder/shared/log_summary.py` → `src/mispatch_finder/infra/logging/log_summary.py`
+   - Moved `tests/mispatch_finder/shared/test_log_summary.py` → `tests/mispatch_finder/infra/logging/test_log_summary.py`
+
+2. **Port Extension** ([core/ports.py:187-189](src/mispatch_finder/core/ports.py#L187-L189)):
+   - Added `get_analyzed_ids() -> set[str]` to `LogStorePort`
+   - Returns set of GHSA IDs that have been analyzed (done=True)
+
+3. **Adapter Implementation** ([infra/log_store.py:33-35](src/mispatch_finder/infra/log_store.py#L33-L35)):
+   - Implemented `get_analyzed_ids()` in `LogStore`
+   - Uses `summarize_logs()` internally to get analysis status
+
+4. **UseCase Refactoring** ([core/usecases/list.py:16-18, 62](src/mispatch_finder/core/usecases/list.py#L16-L18)):
+   - **Before**: `__init__(vuln_data, logs_dir: Path)` + direct `summarize_logs(self._logs_dir)` call
+   - **After**: `__init__(vuln_data, log_store: LogStorePort)` + `self._log_store.get_analyzed_ids()`
+   - Removed direct file system access from UseCase
+   - Simplified filtering logic (no dict traversal, just set membership check)
+
+5. **Container Update** ([app/container.py:101-105](src/mispatch_finder/app/container.py#L101-L105)):
+   - Changed `list_uc` to inject `log_store` instead of `logs_dir`
+
+6. **Test Updates** ([tests/core/test_usecases.py:141-152](tests/mispatch_finder/core/test_usecases.py#L141-L152)):
+   - Added `FakeLogStore` class with configurable `analyzed_ids`
+   - Updated all `ListUseCase` tests to use `log_store` instead of `logs_dir`
+   - Added `test_list_usecase_excludes_analyzed()` to verify filtering behavior
+
+7. **Import Updates**:
+   - `core/usecases/list.py`: Updated import path
+   - `infra/log_store.py`: Changed to relative import `.logging.log_summary`
+   - `tests/infra/logging/test_log_summary.py`: Updated module path
+
+**Benefits**:
+- ✅ **Clear architecture**: Log parsing utilities now in proper infra layer
+- ✅ **DI consistency**: All core code uses Ports, no direct infra imports
+- ✅ **Better testability**: `FakeLogStore` enables easy testing
+- ✅ **Simpler code**: Set membership check vs. dict traversal + property access
+- ✅ **Decoupling**: UseCase no longer knows about file system paths
+
+**Impact**: Updated 10 files (1 port, 1 adapter, 1 usecase, 1 container, 6 test files)
 
 ## Active TODOs
 
