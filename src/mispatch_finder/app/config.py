@@ -80,7 +80,7 @@ class LLMConfig(BaseSettings):
     )
 
     model_name: str = Field(
-        default="gpt-4",
+        default="gpt-5",
         description="LLM model name",
     )
 
