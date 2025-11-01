@@ -22,7 +22,8 @@ def test_cli_list_requires_github_token(monkeypatch):
 @pytest.mark.skipif(not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set")
 def test_cli_list_lists_ghsa_ids():
     """Integration test: list command lists GHSA IDs."""
-    result = runner.invoke(app, ["list"])
+    # Use --json flag to get JSON output for testing
+    result = runner.invoke(app, ["list", "--json"])
 
     assert result.exit_code == 0
     data = json.loads(result.stdout)

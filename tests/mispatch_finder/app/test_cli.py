@@ -20,11 +20,25 @@ def test_cli_list_requires_github_token(monkeypatch):
 
 @pytest.mark.skipif(not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set")
 def test_cli_list_lists_items():
-    result = runner.invoke(app, ["list"])
+    # Use --json flag to get JSON output for testing
+    result = runner.invoke(app, ["list", "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert "items" in payload
     assert isinstance(payload["items"], list)
+
+
+@pytest.mark.skipif(not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set")
+def test_cli_list_human_readable_format():
+    """Test that list command outputs human-readable format by default."""
+    result = runner.invoke(app, ["list"])
+    assert result.exit_code == 0
+    # Should contain human-readable text, not JSON
+    assert "Found" in result.stdout
+    assert "vulnerabilities:" in result.stdout
+    # Should NOT be valid JSON
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(result.stdout)
 
 
 @pytest.mark.skip(reason="clear command disabled - TODO: fix resource conflicts and define clear semantics")
