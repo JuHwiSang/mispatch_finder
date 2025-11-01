@@ -29,6 +29,7 @@ class Container(containers.DeclarativeContainer):
     vuln_data = providers.Singleton(
         VulnerabilityDataAdapter,
         github_token=config.github.token,
+        cache_dir=config.directories.cache_dir,
     )
 
     repo = providers.Singleton(
