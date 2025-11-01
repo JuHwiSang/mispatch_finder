@@ -2,6 +2,7 @@
 import json
 import pytest
 from pathlib import Path
+from typing import Iterator
 from git import Repo
 from dependency_injector import providers
 
@@ -86,6 +87,38 @@ class MockVulnerabilityRepository:
                     severity="CRITICAL",
                 ),
             ]
+
+    def list_vulnerabilities_iter(
+        self,
+        ecosystem: str = "npm",
+        detailed: bool = False,
+        filter_expr: str | None = None,
+    ) -> Iterator[str] | Iterator[Vulnerability]:
+        """Mock list_vulnerabilities_iter implementation."""
+        if not detailed:
+            yield "GHSA-1111-2222-3333"
+            yield "GHSA-4444-5555-6666"
+        else:
+            yield Vulnerability(
+                ghsa_id="GHSA-1111-2222-3333",
+                repository=Repository(
+                    owner=self._owner, name=self._name, ecosystem="npm", star_count=100, size_kb=500
+                ),
+                commit_hash=self._commit,
+                cve_id="CVE-2023-1111",
+                summary="Test vulnerability 1",
+                severity="HIGH",
+            )
+            yield Vulnerability(
+                ghsa_id="GHSA-4444-5555-6666",
+                repository=Repository(
+                    owner=self._owner, name=self._name, ecosystem="npm", star_count=200, size_kb=1000
+                ),
+                commit_hash=self._commit,
+                cve_id="CVE-2023-4444",
+                summary="Test vulnerability 2",
+                severity="CRITICAL",
+            )
 
     def clear_cache(self, prefix: str | None = None) -> None:
         pass

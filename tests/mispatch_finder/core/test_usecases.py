@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from typing import Union, overload
+from typing import Union, overload, Iterator
 from typing import cast
 
 from mispatch_finder.core.ports import (
@@ -22,6 +22,7 @@ class FakeVulnRepo:
     def __init__(self):
         self.fetched = []
         self.listed = []
+        self.listed_iter = []
         self.cache_cleared_with = []
 
     def fetch_metadata(self, ghsa: str) -> Vulnerability:
@@ -79,6 +80,35 @@ class FakeVulnRepo:
                     severity="CRITICAL",
                 ),
             ]
+
+    def list_vulnerabilities_iter(
+        self,
+        ecosystem: str = "npm",
+        detailed: bool = False,
+        filter_expr: str | None = None,
+    ) -> Iterator[str] | Iterator[Vulnerability]:
+        """Iterate over vulnerabilities lazily."""
+        self.listed_iter.append((ecosystem, detailed, filter_expr))
+        if not detailed:
+            yield "GHSA-1111-2222-3333"
+            yield "GHSA-4444-5555-6666"
+        else:
+            yield Vulnerability(
+                ghsa_id="GHSA-1111-2222-3333",
+                repository=Repository(owner="test", name="repo1", ecosystem="npm", star_count=100, size_kb=500),
+                commit_hash="abc123",
+                cve_id="CVE-2023-1111",
+                summary="Test vulnerability 1",
+                severity="HIGH",
+            )
+            yield Vulnerability(
+                ghsa_id="GHSA-4444-5555-6666",
+                repository=Repository(owner="test", name="repo2", ecosystem="npm", star_count=200, size_kb=1000),
+                commit_hash="def456",
+                cve_id="CVE-2023-4444",
+                summary="Test vulnerability 2",
+                severity="CRITICAL",
+            )
 
     def clear_cache(self, prefix: str | None = None) -> None:
         self.cache_cleared_with.append(prefix)
@@ -195,34 +225,47 @@ def test_run_analysis_usecase_executes_full_flow():
     assert mcp.cleanup_called
 
 
-def test_list_usecase_ids_only():
+def test_list_usecase_ids_only(tmp_path):
     """Test listing vulnerabilities with detailed=False (IDs only)."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
 
-    result = uc.execute(limit=500, ecosystem="npm", detailed=False)
+    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+
+    result = uc.execute(limit=500, ecosystem="npm", detailed=False, include_analyzed=True)
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
-    assert vuln_data.listed == [(500, "npm", False, None)]
+    # Now uses iterator (listed_iter instead of listed)
+    assert len(vuln_data.listed_iter) == 1
+    assert vuln_data.listed_iter[0][0] == "npm"  # ecosystem
+    assert vuln_data.listed_iter[0][1] == False  # detailed
 
 
-def test_list_usecase_custom_ecosystem():
+def test_list_usecase_custom_ecosystem(tmp_path):
     """Test listing with custom ecosystem."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
 
-    result = uc.execute(limit=100, ecosystem="pypi", detailed=False)
+    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+
+    result = uc.execute(limit=100, ecosystem="pypi", detailed=False, include_analyzed=True)
 
     assert result == ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"]
-    assert vuln_data.listed == [(100, "pypi", False, None)]
+    assert len(vuln_data.listed_iter) == 1
+    assert vuln_data.listed_iter[0][0] == "pypi"  # ecosystem
 
 
-def test_list_usecase_detailed():
+def test_list_usecase_detailed(tmp_path):
     """Test listing vulnerabilities with detailed=True (full metadata)."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
 
-    result = cast(list[Vulnerability], uc.execute(limit=10, ecosystem="npm", detailed=True))
+    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+
+    result = cast(list[Vulnerability], uc.execute(limit=10, ecosystem="npm", detailed=True, include_analyzed=True))
 
     assert isinstance(result, list)
     assert len(result) == 2
@@ -233,18 +276,23 @@ def test_list_usecase_detailed():
     assert result[0].severity == "HIGH"
     assert result[1].ghsa_id == "GHSA-4444-5555-6666"
     assert result[1].severity == "CRITICAL"
-    assert vuln_data.listed == [(10, "npm", True, None)]
+    assert len(vuln_data.listed_iter) == 1
+    assert vuln_data.listed_iter[0][1] == True  # detailed
 
 
-def test_list_usecase_with_filter():
+def test_list_usecase_with_filter(tmp_path):
     """Test listing with filter expression."""
     vuln_data = FakeVulnRepo()
-    uc = ListUseCase(vuln_data=vuln_data)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
 
-    result = uc.execute(limit=10, ecosystem="npm", detailed=True, filter_expr="stars > 1000")
+    uc = ListUseCase(vuln_data=vuln_data, logs_dir=logs_dir)
+
+    result = uc.execute(limit=10, ecosystem="npm", detailed=True, filter_expr="stars > 1000", include_analyzed=True)
 
     assert isinstance(result, list)
-    assert vuln_data.listed == [(10, "npm", True, "stars > 1000")]
+    assert len(vuln_data.listed_iter) == 1
+    assert vuln_data.listed_iter[0][2] == "stars > 1000"  # filter_expr
 
 
 @pytest.mark.skip(reason="clear command disabled - TODO: fix resource conflicts and define clear semantics")

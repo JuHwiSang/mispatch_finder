@@ -110,8 +110,6 @@ def test_analyze_end_to_end(tmp_path, monkeypatch):
 
 def test_list_vulnerabilities(tmp_path):
     """E2E test: list command returns vulnerability list."""
-    from mispatch_finder.core.usecases.list import ListUseCase
-
     test_config = AppConfig(
         directories=DirectoryConfig(home=tmp_path),
         llm=LLMConfig(api_key="test-key", provider_name="openai", model_name="gpt-4"),
@@ -126,12 +124,13 @@ def test_list_vulnerabilities(tmp_path):
     container.vuln_data.override(providers.Singleton(MockVulnerabilityRepository))
 
     # Execute (mimics CLI implementation)
-    uc = ListUseCase(vuln_data=container.vuln_data())
+    uc = container.list_uc()
     result = uc.execute(
         limit=10,
         ecosystem=container.config.vulnerability.ecosystem(),
         detailed=False,
         filter_expr=None,
+        include_analyzed=True,
     )
 
     assert isinstance(result, list)
