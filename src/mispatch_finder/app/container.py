@@ -44,7 +44,7 @@ class Container(containers.DeclarativeContainer):
 
     result_store = providers.Singleton(
         ResultStore,
-        results_dir=config.directories.results_dir,
+        results_dir=config.directories.logs_dir,
     )
 
     log_store = providers.Singleton(

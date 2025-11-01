@@ -11,11 +11,11 @@ class ResultStore:
         self._results_dir = results_dir
 
     def save(self, ghsa: str, payload: dict) -> None:
-        fp = self._results_dir / f"{ghsa}.json"
+        fp = self._results_dir / f"{ghsa}.jsonl"
         fp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def load(self, ghsa: str) -> dict | None:
-        fp = self._results_dir / f"{ghsa}.json"
+        fp = self._results_dir / f"{ghsa}.jsonl"
         if not fp.exists():
             return None
         return json.loads(fp.read_text(encoding="utf-8"))
