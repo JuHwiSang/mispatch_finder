@@ -101,7 +101,7 @@ class Container(containers.DeclarativeContainer):
     list_uc = providers.Factory(
         ListUseCase,
         vuln_data=vuln_data,
-        logs_dir=config.directories.logs_dir,
+        log_store=log_store,
     )
 
     clear_cache_uc = providers.Factory(

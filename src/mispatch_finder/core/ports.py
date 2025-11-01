@@ -175,13 +175,17 @@ class ResultStorePort(Protocol):
 
 class LogStorePort(Protocol):
     """Port for reading log files."""
-    
+
     def read_log(self, ghsa: str, verbose: bool) -> list[str]:
         """Read and format log for a single GHSA."""
         ...
 
     def summarize_all(self, verbose: bool) -> list[str]:
         """Summarize all logs as table."""
+        ...
+
+    def get_analyzed_ids(self) -> set[str]:
+        """Return set of GHSA IDs that have been analyzed (done=True)."""
         ...
 
 

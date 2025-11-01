@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..core.ports import LogStorePort
-from ..shared.log_summary import (
+from .logging.log_summary import (
     format_single_summary,
     format_summary_table,
     parse_log_details,
@@ -29,4 +29,8 @@ class LogStore:
     def summarize_all(self, verbose: bool) -> list[str]:
         summaries = summarize_logs(self._logs_dir, verbose=verbose)
         return format_summary_table(summaries, verbose=verbose)
+
+    def get_analyzed_ids(self) -> set[str]:
+        summaries = summarize_logs(self._logs_dir, verbose=False)
+        return {ghsa_id for ghsa_id, summary in summaries.items() if summary.done}
 

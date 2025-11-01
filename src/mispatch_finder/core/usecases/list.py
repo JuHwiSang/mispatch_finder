@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from typing import cast
-from pathlib import Path
 
 from ..domain.models import Vulnerability
-from ..ports import VulnerabilityDataPort
-from ...shared.log_summary import summarize_logs
+from ..ports import VulnerabilityDataPort, LogStorePort
 
 
 class ListUseCase:
@@ -15,9 +13,9 @@ class ListUseCase:
     Business logic: Fetch vulnerabilities, filter out analyzed ones, apply limit.
     """
 
-    def __init__(self, *, vuln_data: VulnerabilityDataPort, logs_dir: Path) -> None:
+    def __init__(self, *, vuln_data: VulnerabilityDataPort, log_store: LogStorePort) -> None:
         self._vuln_data = vuln_data
-        self._logs_dir = logs_dir
+        self._log_store = log_store
 
     def execute(
         self,
@@ -59,7 +57,7 @@ class ListUseCase:
             return result
 
         # Filter out analyzed items using lazy iteration
-        summaries = summarize_logs(self._logs_dir, verbose=False)
+        analyzed_ids = self._log_store.get_analyzed_ids()
         result_filtered: list[str] | list[Vulnerability] = []
 
         for item in self._vuln_data.list_vulnerabilities_iter(
@@ -74,7 +72,7 @@ class ListUseCase:
                 ghsa_id = cast(str, item)
 
             # Skip if already analyzed
-            if ghsa_id in summaries and summaries[ghsa_id].done:
+            if ghsa_id in analyzed_ids:
                 continue
 
             result_filtered.append(cast(Vulnerability, item))
