@@ -578,58 +578,84 @@ Optional:
    - Or implement proper lifecycle management (close client before clearing)
 3. Re-enable command and tests once semantics are defined and conflicts resolved
 
-## Active TODOs and Stashed Work
+### Phase 19: Iterator-Based Vulnerability Listing (2025-11-01)
+**Status**: ✅ Completed
 
-### Stashed Changes
-**Note**: When completing stashed work, remove the corresponding section from this file.
+**Problem**:
+- `ListUseCase` used inefficient progressive fetching with exponential backoff (1x, 2x, 4x, up to 10x limit)
+- When many vulnerabilities were already analyzed, fetched unnecessarily large batches
+- `cve_collector` v0.8.0+ supports `list_vulnerabilities_iter()` for lazy iteration
 
-1. **Stash 1: CLI Human-Readable Output** (git stash)
-   - **What**: Convert CLI JSON output to human-readable format
-   - **Files**:
-     - Created `app/cli_formatter.py` with `format_analyze_result()` and `format_vulnerability_list()`
-     - Updated `cli.py`: Added `--json` flag to `analyze` and `list` commands
-     - Default output: Human-readable text; `--json` flag: JSON output
-   - **Tests**: Created `tests/app/test_cli_formatter.py`
-   - **Status**: Fully implemented, just needs to be unstashed and committed
+**Solution**: Migrated to iterator-based approach for efficient streaming
 
-2. **Stash 2: ListUseCase Filtering Logic** (may be partially stashed)
-   - **What**: Move analyzed-item filtering logic from CLI to UseCase
-   - **Current State**:
-     - ListUseCase was modified to accept `logs_dir` and `include_analyzed` parameter
-     - Progressive fetching with exponential backoff implemented
-     - Tests updated
-   - **Note**: This may have been partially unstashed. Verify current state before proceeding.
+**Changes**:
+1. **VulnerabilityDataPort** ([core/ports.py:73-93](src/mispatch_finder/core/ports.py#L73-L93)):
+   - Added `list_vulnerabilities_iter()` method
+   - Returns `Iterator[str] | Iterator[Vulnerability]` based on `detailed` parameter
 
-### Active TODOs
+2. **VulnerabilityDataAdapter** ([infra/vulnerability_data.py:170-204](src/mispatch_finder/infra/vulnerability_data.py#L170-L204)):
+   - Implemented `list_vulnerabilities_iter()` using `cve_collector` client's iterator
+   - Lazy iteration with GHSA ID validation and deduplication
+   - Converts to domain models on-the-fly
+
+3. **ListUseCase** ([core/usecases/list.py:47-83](src/mispatch_finder/core/usecases/list.py#L47-L83)):
+   - Removed complex progressive fetching logic (97 lines → 83 lines)
+   - Simple iterator consumption: fetch until `limit` reached
+   - Skip analyzed items immediately during iteration (no batch processing)
+
+4. **Tests**:
+   - Added `list_vulnerabilities_iter()` to `FakeVulnRepo` with `listed_iter` tracking
+   - Added `list_vulnerabilities_iter()` to `MockVulnerabilityRepository`
+   - Updated all test assertions: `vuln_data.listed` → `vuln_data.listed_iter`
+
+**Benefits**:
+- ✅ **Memory efficient**: No large batch loading, stream items one by one
+- ✅ **Performance**: Stop fetching immediately when limit reached
+- ✅ **Code simplicity**: Removed 14 lines of complex multiplier logic
+- ✅ **Scalability**: Works efficiently even with 90%+ analyzed vulnerabilities
+
+**Type System Notes**:
+- Current implementation uses `cast()` in `ListUseCase` due to Union return type limitations
+- Python's type system cannot infer return type from runtime `detailed` parameter value
+- When `cve_collector` improves typing (e.g., with Literal types), casts can be removed
+- Iterator's Union type (`Iterator[str] | Iterator[Vulnerability]`) is a known Python typing limitation
+
+### Phase 20: CLI Human-Readable Output (2025-11-01)
+**Status**: ✅ Completed
+
+**Problem**:
+- CLI commands output raw JSON, difficult for users to read
+- Need user-friendly output by default, with optional JSON for scripting
+
+**Solution**: Implemented formatter module with `--json` flag
+
+**Changes**:
+1. **CLI Formatter** ([app/cli_formatter.py](src/mispatch_finder/app/cli_formatter.py)):
+   - `format_analyze_result()`: Formats analysis results with color-coded status
+   - `format_vulnerability_list()`: Formats vulnerability lists with metadata
+
+2. **CLI Commands** ([app/cli.py](src/mispatch_finder/app/cli.py)):
+   - Added `--json` flag to `analyze` and `list` commands
+   - Default: Human-readable output (uses formatter)
+   - `--json` flag: Raw JSON output (for scripting)
+
+3. **Tests** ([tests/app/test_cli_formatter.py](tests/mispatch_finder/app/test_cli_formatter.py)):
+   - Unit tests for both formatter functions
+
+**Benefits**:
+- ✅ **User-friendly**: Default output is readable and informative
+- ✅ **Scriptable**: JSON output available via `--json` flag
+- ✅ **Consistent**: Same formatting pattern across all commands
+
+## Active TODOs
+
 **When completing these, remove from this list and document in "Recent Changes" above.**
 
-1. **TODO: Fix ListUseCase for new cve_collector signature**
-   - **Issue**: `ListUseCase` currently reverted to simple implementation (stashed changes lost)
-   - **Required**: Re-implement progressive fetching logic:
-     ```python
-     # Fetch 1x limit, if not enough → 2x, if not enough → 4x, up to 10x
-     # This handles cases where most items are already analyzed
-     ```
-   - **Files**: `core/usecases/list.py`, tests
-
-2. **TODO: Re-enable clear command** (see Phase 18 above)
+1. **TODO: Re-enable clear command** (see Phase 18 above)
    - Define semantics
    - Fix resource conflicts
    - Re-enable tests
 
-3. **TODO: Extract default limit (10) to config**
+2. **TODO: Extract default limit (10) to config**
    - Currently hardcoded in `ListUseCase.execute()`
    - Should come from `AppConfig` (new field: `list_default_limit`)
-
-### Git Stash Management
-To view stashed changes:
-```bash
-git stash list
-git stash show -p stash@{0}  # View specific stash
-```
-
-To apply stashed changes:
-```bash
-git stash pop  # Apply and remove latest stash
-git stash apply stash@{N}  # Apply specific stash without removing
-```
