@@ -11,15 +11,15 @@ runner = CliRunner()
 
 
 def test_cli_list_requires_github_token(monkeypatch):
-    """Test that list command behavior without GITHUB_TOKEN."""
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    """Test that list command behavior without MISPATCH_FINDER_GITHUB__TOKEN."""
+    monkeypatch.delenv("MISPATCH_FINDER_GITHUB__TOKEN", raising=False)
     result = runner.invoke(app, ["list"])
     # Note: cve_collector may use cached data or have fallback behavior
     # So this might succeed or fail depending on cache state
     assert result.exit_code in (0, 2)
 
 
-@pytest.mark.skipif(not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set")
+@pytest.mark.skipif(not os.environ.get("MISPATCH_FINDER_GITHUB__TOKEN"), reason="MISPATCH_FINDER_GITHUB__TOKEN not set")
 def test_cli_list_lists_ghsa_ids():
     """Integration test: list command lists GHSA IDs."""
     # Use --json flag to get JSON output for testing
@@ -156,4 +156,52 @@ def test_cli_run_accepts_log_level(monkeypatch):
 
     # Should parse log level correctly
     assert "log-level" not in result.stderr.lower() or result.exit_code != 2
+
+
+@pytest.mark.skipif(not os.environ.get("MISPATCH_FINDER_GITHUB__TOKEN"), reason="MISPATCH_FINDER_GITHUB__TOKEN not set")
+def test_cli_list_detail_flag():
+    """Test that list command accepts --detail flag."""
+    result = runner.invoke(app, ["list", "--detail", "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    # With --detail, should return object with "count" and "vulnerabilities"
+    assert "vulnerabilities" in data
+    assert isinstance(data["vulnerabilities"], list)
+
+
+@pytest.mark.skipif(not os.environ.get("MISPATCH_FINDER_GITHUB__TOKEN"), reason="MISPATCH_FINDER_GITHUB__TOKEN not set")
+def test_cli_list_detail_short_flag():
+    """Test that list command accepts -d short flag for detail."""
+    result = runner.invoke(app, ["list", "-d", "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    # With -d, should return object with "count" and "vulnerabilities"
+    assert "vulnerabilities" in data
+    assert isinstance(data["vulnerabilities"], list)
+
+
+@pytest.mark.skipif(not os.environ.get("MISPATCH_FINDER_GITHUB__TOKEN"), reason="MISPATCH_FINDER_GITHUB__TOKEN not set")
+def test_cli_list_include_analyzed_flag():
+    """Test that list command accepts --include-analyzed flag."""
+    result = runner.invoke(app, ["list", "--include-analyzed", "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    # Should parse flag correctly and return items
+    assert "items" in data
+    assert isinstance(data["items"], list)
+
+
+@pytest.mark.skipif(not os.environ.get("MISPATCH_FINDER_GITHUB__TOKEN"), reason="MISPATCH_FINDER_GITHUB__TOKEN not set")
+def test_cli_list_include_analyzed_short_flag():
+    """Test that list command accepts -i short flag for include-analyzed."""
+    result = runner.invoke(app, ["list", "-i", "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    # Should parse flag correctly and return items
+    assert "items" in data
+    assert isinstance(data["items"], list)
 

@@ -10,15 +10,15 @@ runner = CliRunner()
 
 
 def test_cli_list_requires_github_token(monkeypatch):
-    """Test list command behavior without GITHUB_TOKEN."""
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    """Test list command behavior without MISPATCH_FINDER_GITHUB__TOKEN."""
+    monkeypatch.delenv("MISPATCH_FINDER_GITHUB__TOKEN", raising=False)
     result = runner.invoke(app, ["list"])
     # Note: list command may succeed with cached data or default behavior
     # Just verify it doesn't crash
     assert result.exit_code in (0, 2)
 
 
-@pytest.mark.skipif(not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set")
+@pytest.mark.skipif(not os.environ.get("MISPATCH_FINDER_GITHUB__TOKEN"), reason="MISPATCH_FINDER_GITHUB__TOKEN not set")
 def test_cli_list_lists_items():
     # Use --json flag to get JSON output for testing
     result = runner.invoke(app, ["list", "--json"])
@@ -28,7 +28,7 @@ def test_cli_list_lists_items():
     assert isinstance(payload["items"], list)
 
 
-@pytest.mark.skipif(not os.environ.get("GITHUB_TOKEN"), reason="GITHUB_TOKEN not set")
+@pytest.mark.skipif(not os.environ.get("MISPATCH_FINDER_GITHUB__TOKEN"), reason="MISPATCH_FINDER_GITHUB__TOKEN not set")
 def test_cli_list_human_readable_format():
     """Test that list command outputs human-readable format by default."""
     result = runner.invoke(app, ["list"])
