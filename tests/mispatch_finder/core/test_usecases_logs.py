@@ -4,7 +4,9 @@ from typing import Optional
 from mispatch_finder.core.usecases.logs import LogsUseCase
 
 
-class FakeLogStore:
+class FakeAnalysisStore:
+    """Fake analysis store for testing logs functionality."""
+
     def __init__(self):
         self.read_calls = []
         self.summarize_calls = []
@@ -34,8 +36,8 @@ class FakeLogStore:
 
 
 def test_logs_with_ghsa_verbose():
-    store = FakeLogStore()
-    uc = LogsUseCase(log_store=store)
+    store = FakeAnalysisStore()
+    uc = LogsUseCase(analysis_store=store)
 
     result = uc.execute(ghsa="GHSA-TEST", verbose=True)
 
@@ -45,8 +47,8 @@ def test_logs_with_ghsa_verbose():
 
 
 def test_logs_with_ghsa_non_verbose():
-    store = FakeLogStore()
-    uc = LogsUseCase(log_store=store)
+    store = FakeAnalysisStore()
+    uc = LogsUseCase(analysis_store=store)
 
     result = uc.execute(ghsa="GHSA-TEST", verbose=False)
 
@@ -56,8 +58,8 @@ def test_logs_with_ghsa_non_verbose():
 
 
 def test_logs_without_ghsa_verbose():
-    store = FakeLogStore()
-    uc = LogsUseCase(log_store=store)
+    store = FakeAnalysisStore()
+    uc = LogsUseCase(analysis_store=store)
 
     result = uc.execute(ghsa=None, verbose=True)
 
@@ -67,8 +69,8 @@ def test_logs_without_ghsa_verbose():
 
 
 def test_logs_without_ghsa_non_verbose():
-    store = FakeLogStore()
-    uc = LogsUseCase(log_store=store)
+    store = FakeAnalysisStore()
+    uc = LogsUseCase(analysis_store=store)
 
     result = uc.execute(ghsa=None, verbose=False)
 

@@ -145,6 +145,9 @@ def test_analyze_end_to_end(tmp_path, monkeypatch):
         analysis=AnalysisConfig(diff_max_chars=200_000),
     )
 
+    # Set runtime GHSA (required for logger)
+    test_config.runtime.ghsa = "GHSA-TEST-E2E"
+
     # Create mocked container
     def create_mocked_container():
         container = Container()

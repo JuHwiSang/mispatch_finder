@@ -8,10 +8,9 @@ from mispatch_finder.core.ports import (
     RepositoryPort,
     MCPServerPort,
     LLMPort,
-    ResultStorePort,
+    AnalysisStorePort,
     TokenGeneratorPort,
     MCPServerContext,
-    LogStorePort,
 )
 from mispatch_finder.core.domain.models import Vulnerability, Repository
 from mispatch_finder.core.usecases.analyze import AnalyzeUseCase
@@ -138,7 +137,9 @@ class FakeMCP:
         return ctx
 
 
-class FakeLogStore:
+class FakeAnalysisStore:
+    """Fake analysis store for reading logs."""
+
     def __init__(self, analyzed_ids: set[str] | None = None):
         self.analyzed_ids = analyzed_ids or set()
 
@@ -155,23 +156,6 @@ class FakeLogStore:
 class FakeLLM:
     def call(self, *, prompt: str, mcp_url: str, mcp_token: str) -> str:
         return '{"patch_risk":"good","current_risk":"good","reason":"test","poc":"test poc"}'
-
-
-class FakeStore:
-    def __init__(self):
-        self.saved = []
-
-    def save(self, ghsa: str, payload: dict) -> None:
-        self.saved.append((ghsa, payload))
-
-    def load(self, ghsa: str) -> dict | None:
-        for saved_ghsa, saved_payload in self.saved:
-            if saved_ghsa == ghsa:
-                return saved_payload
-        return None
-
-    def list_all(self) -> list[dict]:
-        return [payload for _, payload in self.saved]
 
 
 class FakeTokenGen:
@@ -198,14 +182,13 @@ class FakeLogger:
 
 
 def test_run_analysis_usecase_executes_full_flow():
-    """Test that AnalyzeUseCase delegates to orchestrator and stores result."""
+    """Test that AnalyzeUseCase delegates to orchestrator."""
     from mispatch_finder.core.services import AnalysisOrchestrator, DiffService, JsonExtractor
 
     vuln_data = FakeVulnRepo()
     repo = FakeRepo()
     mcp = FakeMCP()
     llm = FakeLLM()
-    store = FakeStore()
     token_gen = FakeTokenGen()
     logger = FakeLogger()
 
@@ -228,13 +211,11 @@ def test_run_analysis_usecase_executes_full_flow():
     # Create use case (now much simpler)
     uc = AnalyzeUseCase(
         orchestrator=orchestrator,
-        store=store,
     )
 
     result = uc.execute(ghsa="GHSA-TEST-1234-5678", force_reclone=False)
 
     assert vuln_data.fetched == ["GHSA-TEST-1234-5678"]
-    assert store.saved[0][0] == "GHSA-TEST-1234-5678"
     assert result["ghsa"] == "GHSA-TEST-1234-5678"
     # provider/model are logged by LLM adapter, not in result
     assert mcp.cleanup_called
@@ -243,9 +224,9 @@ def test_run_analysis_usecase_executes_full_flow():
 def test_list_usecase_ids_only():
     """Test listing vulnerabilities with detailed=False (IDs only)."""
     vuln_data = FakeVulnRepo()
-    log_store = FakeLogStore()
+    analysis_store = FakeAnalysisStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
+    uc = ListUseCase(vuln_data=vuln_data, analysis_store=analysis_store)
 
     result = uc.execute(limit=500, ecosystem="npm", detailed=False, include_analyzed=True)
 
@@ -259,9 +240,9 @@ def test_list_usecase_ids_only():
 def test_list_usecase_custom_ecosystem():
     """Test listing with custom ecosystem."""
     vuln_data = FakeVulnRepo()
-    log_store = FakeLogStore()
+    analysis_store = FakeAnalysisStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
+    uc = ListUseCase(vuln_data=vuln_data, analysis_store=analysis_store)
 
     result = uc.execute(limit=100, ecosystem="pypi", detailed=False, include_analyzed=True)
 
@@ -273,9 +254,9 @@ def test_list_usecase_custom_ecosystem():
 def test_list_usecase_detailed():
     """Test listing vulnerabilities with detailed=True (full metadata)."""
     vuln_data = FakeVulnRepo()
-    log_store = FakeLogStore()
+    analysis_store = FakeAnalysisStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
+    uc = ListUseCase(vuln_data=vuln_data, analysis_store=analysis_store)
 
     result = cast(list[Vulnerability], uc.execute(limit=10, ecosystem="npm", detailed=True, include_analyzed=True))
 
@@ -295,9 +276,9 @@ def test_list_usecase_detailed():
 def test_list_usecase_with_filter():
     """Test listing with filter expression."""
     vuln_data = FakeVulnRepo()
-    log_store = FakeLogStore()
+    analysis_store = FakeAnalysisStore()
 
-    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
+    uc = ListUseCase(vuln_data=vuln_data, analysis_store=analysis_store)
 
     result = uc.execute(limit=10, ecosystem="npm", detailed=True, filter_expr="stars > 1000", include_analyzed=True)
 
@@ -310,9 +291,9 @@ def test_list_usecase_excludes_analyzed():
     """Test that analyzed vulnerabilities are excluded when include_analyzed=False."""
     vuln_data = FakeVulnRepo()
     # Mark GHSA-1111-2222-3333 as analyzed
-    log_store = FakeLogStore(analyzed_ids={"GHSA-1111-2222-3333"})
+    analysis_store = FakeAnalysisStore(analyzed_ids={"GHSA-1111-2222-3333"})
 
-    uc = ListUseCase(vuln_data=vuln_data, log_store=log_store)
+    uc = ListUseCase(vuln_data=vuln_data, analysis_store=analysis_store)
 
     result = uc.execute(limit=10, ecosystem="npm", detailed=False, include_analyzed=False)
 

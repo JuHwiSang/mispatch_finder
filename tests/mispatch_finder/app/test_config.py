@@ -107,15 +107,18 @@ def test_app_config_explicit_values(tmp_path):
     assert config.analysis.diff_max_chars == 100000
 
 
-def test_app_config_frozen():
-    """Test that AppConfig is immutable."""
-    from pydantic import ValidationError
-
+def test_app_config_allows_runtime_mutation():
+    """Test that AppConfig allows runtime mutation for runtime fields."""
     config = AppConfig()
 
-    # Pydantic v2 frozen models raise ValidationError when trying to modify
-    with pytest.raises(ValidationError, match="frozen"):
-        config.llm = LLMConfig(api_key="new-key")  # type: ignore
+    # AppConfig is frozen=False to allow runtime.ghsa mutation
+    # This is needed for CLI to set GHSA before creating container
+    config.runtime.ghsa = "GHSA-TEST-1234-5678"
+    assert config.runtime.ghsa == "GHSA-TEST-1234-5678"
+
+    # Can also mutate logging console_output for CLI
+    config.logging.console_output = True
+    assert config.logging.console_output is True
 
 
 def test_app_config_nested_env_delimiter(monkeypatch):
