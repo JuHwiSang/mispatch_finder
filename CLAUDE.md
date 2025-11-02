@@ -44,7 +44,8 @@ All external dependencies are abstracted through Ports:
 - `MCPServerPort` → `MCPServer` (MCP server management)
 - `LLMPort` → `LLM` (LLM API adapter)
 - `LoggerPort` → `AnalysisLogger` (structured logging)
-- `ResultStorePort`, `LogStorePort`, `CachePort`, `TokenGeneratorPort`
+- `AnalysisStorePort` → `AnalysisStore` (read JSONL logs)
+- `CachePort`, `TokenGeneratorPort`
 
 ## CLI Commands
 
@@ -422,9 +423,11 @@ class Repository:
   - [factory.py](src/mispatch_finder/infra/llm_adapters/factory.py) - Adapter factory (get_adapter)
 - **MCP Server**: [infra/mcp_server.py](src/mispatch_finder/infra/mcp_server.py) - MCP server management
 - **Logging**: [infra/logging/](src/mispatch_finder/infra/logging/) - Structured logging & log parsing
-  - [analysis_logger.py](src/mispatch_finder/infra/logging/analysis_logger.py) - Structured JSON logging
+  - [logger.py](src/mispatch_finder/infra/logging/logger.py) - AnalysisLogger (GHSA-specific JSONL + console)
+  - [formatters.py](src/mispatch_finder/infra/logging/formatters.py) - JSONFormatter, HumanReadableFormatter
+  - [handlers.py](src/mispatch_finder/infra/logging/handlers.py) - build_json_file_handler, build_human_console_handler
   - [log_summary.py](src/mispatch_finder/infra/logging/log_summary.py) - Log parsing & summarization
-- **Stores**: [infra/result_store.py](src/mispatch_finder/infra/result_store.py), [infra/log_store.py](src/mispatch_finder/infra/log_store.py)
+- **Analysis Store**: [infra/analysis_store.py](src/mispatch_finder/infra/analysis_store.py) - Read JSONL logs (read-only)
 
 ## Testing Strategy
 
@@ -434,11 +437,14 @@ class Repository:
 
 ### Key Test Files
 - [tests/core/test_services.py](tests/mispatch_finder/core/test_services.py) - Service layer tests
-- [tests/core/test_usecases.py](tests/mispatch_finder/core/test_usecases.py) - UseCase tests with fakes (includes `FakeLogStore`)
+- [tests/core/test_usecases.py](tests/mispatch_finder/core/test_usecases.py) - UseCase tests with fakes (includes `FakeAnalysisStore`, `FakeLogger`)
 - [tests/core/test_usecases_logs.py](tests/mispatch_finder/core/test_usecases_logs.py) - Logs UseCase scenarios
 - [tests/infra/logging/test_log_summary.py](tests/mispatch_finder/infra/logging/test_log_summary.py) - Log parsing tests
+- [tests/infra/test_analysis_store.py](tests/mispatch_finder/infra/test_analysis_store.py) - AnalysisStore read operations
+- [tests/shared/test_json_logging.py](tests/mispatch_finder/shared/test_json_logging.py) - Handler and formatter tests
 - [tests/app/cli/](tests/mispatch_finder/app/cli/) - CLI command tests by command
 - [tests/app/conftest.py](tests/mispatch_finder/app/conftest.py) - Shared fixtures with mocks
+- [tests/app/test_config.py](tests/mispatch_finder/app/test_config.py) - Configuration tests (including runtime mutation)
 
 ## Development Workflow
 
@@ -451,14 +457,18 @@ pytest tests/mispatch_finder/app/      # E2E tests only
 
 ### Environment Variables
 Required:
-- `GITHUB_TOKEN` - GitHub personal access token
-- `MODEL_API_KEY` or `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - LLM API key
+- `MISPATCH_FINDER_GITHUB__TOKEN` - GitHub personal access token
+- `MISPATCH_FINDER_LLM__API_KEY` - LLM API key (OpenAI or Anthropic)
 
-Optional:
-- `MISPATCH_HOME` - Base directory for all data (default: platform-specific cache dir)
-- `MISPATCH_ECOSYSTEM` - Default ecosystem filter (default: "npm")
-- `MISPATCH_FILTER_EXPR` - Default vulnerability filter expression (default: "stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000")
-- `MISPATCH_DIFF_MAX_CHARS` - Max diff characters in prompt (default: 200,000)
+Optional (with defaults):
+- `MISPATCH_FINDER_LLM__PROVIDER_NAME` - LLM provider (default: "openai")
+- `MISPATCH_FINDER_LLM__MODEL_NAME` - Model name (default: "gpt-5")
+- `MISPATCH_FINDER_VULNERABILITY__ECOSYSTEM` - Default ecosystem filter (default: "npm")
+- `MISPATCH_FINDER_VULNERABILITY__FILTER_EXPR` - Default vulnerability filter expression (default: "stars is not None and stars>=100 and size_bytes is not None and size_bytes<=10_000_000")
+- `MISPATCH_FINDER_DIRECTORIES__HOME` - Base directory for all data (default: platform-specific cache dir)
+- `MISPATCH_FINDER_ANALYSIS__DIFF_MAX_CHARS` - Max diff characters in prompt (default: 200,000)
+- `MISPATCH_FINDER_LOGGING__CONSOLE_OUTPUT` - Enable console output (default: False, CLI sets to True)
+- `MISPATCH_FINDER_LOGGING__LEVEL` - Logging level (default: "INFO")
 
 ### Code Style Guidelines
 
@@ -509,6 +519,9 @@ Optional:
 - **GitPython**: Git operations
 - **openai**: OpenAI SDK (used by infra/llm_adapters/openai_adapter.py)
 - **anthropic**: Anthropic SDK (used by infra/llm_adapters/anthropic_adapter.py)
+- **pydantic**: Configuration management with BaseSettings
+- **pydantic-settings**: Environment variable configuration
+- **python-json-logger**: JSON log formatting (pythonjsonlogger)
 
 ## Notes for Future Development
 
@@ -808,6 +821,146 @@ Optional:
 - ✅ **Decoupling**: UseCase no longer knows about file system paths
 
 **Impact**: Updated 10 files (1 port, 1 adapter, 1 usecase, 1 container, 6 test files)
+
+### Phase 25: Logging System Overhaul (2025-11-02)
+**Status**: ✅ Completed
+
+**Problem**:
+1. `ResultStore` and `LogStore` were separated despite handling the same JSONL log files
+2. Custom JSON formatter instead of using standard library (`python-json-logger`)
+3. No dual output (file + console) - difficult to debug during CLI execution
+4. Logger didn't require GHSA parameter for file naming
+5. Spaghetti config logic with runtime GHSA injection unclear
+
+**Solution**: Complete logging infrastructure redesign with configuration-driven DI
+
+**Changes**:
+
+1. **Store Unification**:
+   - **Deleted**: `infra/result_store.py` (didn't actually exist - was conceptual confusion)
+   - **Renamed**: `LogStore` → `AnalysisStore` ([infra/analysis_store.py](src/mispatch_finder/infra/analysis_store.py))
+   - **Removed**: All write operations from store (JSONL written by `AnalysisLogger` only)
+   - **Port Update**: `ResultStorePort`, `LogStorePort` → `AnalysisStorePort` (read-only)
+     - `read_log(ghsa, verbose) -> list[str]`
+     - `summarize_all(verbose) -> list[str]`
+     - `get_analyzed_ids() -> set[str]`
+
+2. **Formatter Migration** ([infra/logging/formatters.py](src/mispatch_finder/infra/logging/formatters.py)):
+   - **Removed**: Custom `JSONFormatter` implementation
+   - **Added**: `JSONFormatter(JsonFormatter)` extending `pythonjsonlogger.json.JsonFormatter`
+     - Auto-includes: `level`, `logger`, `message`
+     - Supports `payload` via `extra={"payload": data}`
+   - **Added**: `HumanReadableFormatter(logging.Formatter)`
+     - Format: `%(asctime)s - %(levelname)s - %(message)s`
+     - For console output only
+
+3. **Handler Factory** ([infra/logging/handlers.py](src/mispatch_finder/infra/logging/handlers.py)):
+   - **Removed**: `build_json_console_handler()` (JSON not suitable for console)
+   - **Added**: `build_human_console_handler()` (human-readable for CLI)
+   - **Updated**: `build_json_file_handler()` uses new `JSONFormatter`
+
+4. **Logger Redesign** ([infra/logging/logger.py](src/mispatch_finder/infra/logging/logger.py)):
+   - **Required parameter**: `ghsa: str` (for log file naming: `{ghsa}.jsonl`)
+   - **Dual handlers**:
+     - File handler (JSONL) - always enabled
+     - Console handler (human-readable) - controlled by `console_output` flag
+   - **Signature**: `__init__(*, ghsa, logs_dir, logger_name, console_output, level)`
+   - **Validation**: Raises `ValueError` if `ghsa` is empty
+
+5. **Configuration System** ([app/config.py](src/mispatch_finder/app/config.py)):
+   - **Added**: `LoggingConfig(BaseSettings)`
+     - `logger_name: str = "mispatch_finder"`
+     - `console_output: bool = False` (CLI sets to True)
+     - `level: str = "INFO"`
+   - **Added**: `RuntimeConfig(BaseSettings)` (frozen=False for mutation)
+     - `ghsa: str | None = None` (set by CLI before container creation)
+   - **Updated**: `AppConfig.frozen = False` (to allow runtime mutation)
+   - **Added**: `AppConfig.logging` and `AppConfig.runtime` fields
+
+6. **Container Update** ([app/container.py](src/mispatch_finder/app/container.py)):
+   - **Changed**: Logger from `Singleton` → `Factory`
+   - **Injection**: `ghsa=config.runtime.ghsa` (set at runtime by CLI)
+   - **Full signature**:
+     ```python
+     logger = providers.Factory(
+         AnalysisLogger,
+         ghsa=config.runtime.ghsa,
+         logs_dir=config.directories.logs_dir,
+         logger_name=config.logging.logger_name,
+         console_output=config.logging.console_output,
+         level=config.logging.level,
+     )
+     ```
+
+7. **CLI Integration** ([app/cli.py](src/mispatch_finder/app/cli.py)):
+   - **Pattern**: Set runtime config → Create container → Execute
+   ```python
+   config = AppConfig()
+   config.runtime.ghsa = ghsa  # Set GHSA for logger
+   config.logging.console_output = True  # Enable console in CLI
+
+   container = Container()
+   container.config.from_pydantic(config)
+   ```
+
+8. **UseCase Simplification** ([core/usecases/analyze.py](src/mispatch_finder/core/usecases/analyze.py)):
+   - **Removed**: `store` dependency (no longer saves results)
+   - **Signature**: `__init__(*, orchestrator)` only
+   - **Thin wrapper**: Delegates to `orchestrator.analyze()`
+
+9. **Test Updates**:
+   - **test_json_logging.py** ([tests/shared/test_json_logging.py:5-15](tests/mispatch_finder/shared/test_json_logging.py#L5-L15)):
+     - Updated import: `build_json_console_handler` → `build_human_console_handler`
+     - Renamed test: `test_build_json_console_handler` → `test_build_human_console_handler`
+   - **test_config.py** ([tests/app/test_config.py:110-121](tests/mispatch_finder/app/test_config.py#L110-L121)):
+     - Renamed: `test_app_config_frozen` → `test_app_config_allows_runtime_mutation`
+     - Tests `config.runtime.ghsa` and `config.logging.console_output` mutation
+   - **test_analyze.py** ([tests/app/cli/test_analyze.py:148-149](tests/mispatch_finder/app/cli/test_analyze.py#L148-L149)):
+     - Added `test_config.runtime.ghsa = "GHSA-TEST-E2E"` before container creation
+   - **test_usecases.py**: `FakeLogger` already compatible (no changes needed)
+   - **conftest.py**: Mock implementations don't need logger updates
+
+10. **Export Updates** ([infra/logging/__init__.py](src/mispatch_finder/infra/logging/__init__.py:4-12)):
+    - Removed: `build_json_console_handler`
+    - Added: `build_human_console_handler`
+
+**Architecture Flow**:
+```
+CLI Command
+  ↓
+Set config.runtime.ghsa + config.logging.console_output
+  ↓
+Create Container (config → providers)
+  ↓
+Logger Factory creates AnalysisLogger with GHSA-specific file
+  ↓
+Dual output: logs/{ghsa}.jsonl + console (if enabled)
+```
+
+**Benefits**:
+- ✅ **Unified storage**: Single `AnalysisStore` for reading JSONL logs
+- ✅ **Standard library**: `python-json-logger` instead of custom formatter
+- ✅ **Dual output**: JSONL files (always) + human console (CLI only)
+- ✅ **Configuration-driven**: No override patterns, uses `RuntimeConfig`
+- ✅ **GHSA-specific logs**: Each analysis writes to `logs/{ghsa}.jsonl`
+- ✅ **Type-safe config**: Pydantic validates all settings
+- ✅ **Clean DI**: Logger is Factory, created fresh per analysis
+- ✅ **Better debugging**: Console output during CLI execution
+
+**Dependencies Added**:
+- `python-json-logger>=2.0.0` (for `pythonjsonlogger.json.JsonFormatter`)
+
+**Files Modified**: 15 files
+- Config: `config.py`, `container.py`, `cli.py`
+- Infra: `formatters.py`, `handlers.py`, `logger.py`, `analysis_store.py`, `__init__.py`
+- Core: `analyze.py`, `ports.py`
+- Tests: `test_json_logging.py`, `test_config.py`, `test_analyze.py`, `test_usecases.py`, `test_analysis_store.py`
+
+**Files Deleted**: 2 files
+- `infra/log_store.py` (replaced by `analysis_store.py`)
+- `tests/infra/test_log_store.py` (replaced by `test_analysis_store.py`)
+
+**Impact**: Complete overhaul of logging infrastructure with cleaner architecture and better developer experience
 
 ## Active TODOs
 
