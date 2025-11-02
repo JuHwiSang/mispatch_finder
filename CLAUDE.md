@@ -1037,6 +1037,72 @@ evidence          → evidence        → Evidence
 
 **Impact**: Updated 10 files (1 service, 1 usecase, 1 CLI, 1 formatter, 1 log parser, 5 test files)
 
+### Phase 27: Logger Injection for Infrastructure Components (2025-11-02)
+**Status**: ✅ Completed
+
+**Problem**:
+- `LLM` and `MCPServer` classes used `logging.getLogger()` directly instead of injected `AnalysisLogger`
+- LLM and MCP logs were not saved to GHSA-specific JSONL files
+- Inconsistent logging across infrastructure layer (some used DI, some didn't)
+
+**Solution**: Inject `LoggerPort` into infrastructure components that are part of analysis workflow
+
+**Changes**:
+
+1. **LLM** ([infra/llm.py:8-62](src/mispatch_finder/infra/llm.py#L8-L62)):
+   - **Added**: `logger: LoggerPort` parameter to `__init__`
+   - **Removed**: `import logging` and `logger = logging.getLogger(__name__)`
+   - **Updated**: All logging calls to use `self._logger.info()`
+   - **Payload format**: Changed from `extra={"payload": {...}}` to `payload={...}` (AnalysisLogger API)
+   - **Logs**: `llm_input`, `llm_usage`, `llm_output` now written to GHSA-specific JSONL
+
+2. **MCPServer** ([infra/mcp_server.py:23-106](src/mispatch_finder/infra/mcp_server.py#L23-L106)):
+   - **Added**: `logger: LoggerPort` parameter to `__init__`
+   - **Split logging**:
+     - `self._logger` for structured logs (`aggregator_started`, `tunnel_started`, `mcp_cleanup_*`)
+     - `debug_logger = logging.getLogger(__name__)` for low-level debug (tool listing)
+   - **Rationale**: Structured workflow logs → AnalysisLogger, debug traces → standard logger
+   - **Logs**: MCP lifecycle events now written to GHSA-specific JSONL
+
+3. **Container** ([app/container.py:62-80](src/mispatch_finder/app/container.py#L62-L80)):
+   - Reordered providers: `logger` defined before `mcp_server` and `llm`
+   - Added `logger=logger` injection to both `mcp_server` and `llm` factories
+
+4. **CLI** ([app/cli.py:72-77](src/mispatch_finder/app/cli.py#L72-L77)):
+   - Added `logger=container.logger()` when overriding LLM with CLI params
+
+**Not Changed**:
+- **Tunnel** ([infra/mcp/tunnel.py](src/mispatch_finder/infra/mcp/tunnel.py)): ❌ Kept `logging.getLogger()`
+  - **Rationale**: Low-level infrastructure (SSH tunnel management)
+  - GHSA-agnostic network operations, not part of analysis workflow
+  - Standard Python logging sufficient for debugging
+
+**Benefits**:
+- ✅ **Complete traceability**: LLM calls and MCP lifecycle in same GHSA log file
+- ✅ **DDD compliance**: All analysis workflow components use injected logger
+- ✅ **Layer consistency**: Infrastructure layer uniformly uses `AnalysisLogger` for structured logs
+- ✅ **Separation of concerns**: Debug logs (tunnel SSH) vs. workflow logs (analysis)
+
+**Log Flow**:
+```
+Analysis Workflow → AnalysisLogger → {ghsa}.jsonl
+  ├── ghsa_meta (Orchestrator)
+  ├── repos_prepared (Orchestrator)
+  ├── diff_built (Orchestrator)
+  ├── aggregator_started (MCPServer)     ← NEW
+  ├── tunnel_started (MCPServer)         ← NEW
+  ├── mcp_ready (Orchestrator)
+  ├── llm_input (LLM)                    ← NEW
+  ├── llm_usage (LLM)                    ← NEW
+  ├── llm_output (LLM)                   ← NEW
+  ├── final_result (Orchestrator)
+  └── mcp_cleanup_* (MCPServer)          ← NEW
+
+SSH Tunnel → standard logging → console/file (GHSA-agnostic)
+```
+
+**Impact**: Updated 4 files (2 infra adapters, 1 container, 1 CLI)
+
 ## Active TODOs
 
 **When completing these, remove from this list and document in "Recent Changes" above.**
