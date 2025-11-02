@@ -37,7 +37,7 @@ class AnalysisLogger:
         if not ghsa:
             raise ValueError("ghsa is required for AnalysisLogger initialization")
 
-        self._logger = logging.getLogger(f"{logger_name}.{ghsa}")
+        self._logger = logging.getLogger(logger_name)
         self._logger.setLevel(getattr(logging, level.upper()))
         self._logger.propagate = False  # Don't propagate to root logger
 
