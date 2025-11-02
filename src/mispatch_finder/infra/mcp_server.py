@@ -10,17 +10,19 @@ from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 from fastmcp.server.middleware.logging import LoggingMiddleware
 from repo_read_mcp import make_mcp_server as make_repo_mcp
 
-from ..core.ports import MCPServerContext, MCPServerPort
+from ..core.ports import MCPServerContext, MCPServerPort, LoggerPort
 from ..shared.list_tools import list_tools
 from .mcp.tunnel import Tunnel
 from .mcp.wiretap_logging import WiretapLoggingMiddleware
 
-logger = logging.getLogger(__name__)
+# Keep standard logger for low-level debug logs (tool listing, etc.)
+debug_logger = logging.getLogger(__name__)
 
 
 class MCPServer:
-    def __init__(self, *, port: int = 18080) -> None:
+    def __init__(self, *, port: int = 18080, logger: LoggerPort) -> None:
         self._port = port
+        self._logger = logger
 
     def start_servers(
         self,
@@ -55,7 +57,7 @@ class MCPServer:
         if previous_repo:
             app.mount(prefix="previous_repo", server=previous_repo)
 
-        logger.debug(f"Mounted tools: {list_tools(app)}")
+        debug_logger.debug(f"Mounted tools: {list_tools(app)}")
 
         # Start aggregator in daemon thread
         def run_app() -> None:
@@ -65,15 +67,13 @@ class MCPServer:
         thread.start()
         local_url = f"http://127.0.0.1:{self._port}"
 
-        logger.info("aggregator_started", extra={
-            "payload": {
-                "type": "aggregator_started",
-                "local_url": local_url,
-                "mounted": {
-                    "current_repo": bool(current_repo),
-                    "previous_repo": bool(previous_repo),
-                },
-            }
+        self._logger.info("aggregator_started", payload={
+            "type": "aggregator_started",
+            "local_url": local_url,
+            "mounted": {
+                "current_repo": bool(current_repo),
+                "previous_repo": bool(previous_repo),
+            },
         })
 
         # 3) Start tunnel
@@ -82,12 +82,10 @@ class MCPServer:
             raise ValueError(f"Invalid local URL: {local_url}")
         host, port = m.group(1), int(m.group(2))
         public_url, tunnel_handle = Tunnel.start_tunnel(host, port)
-        
-        logger.info("tunnel_started", extra={
-            "payload": {
-                "type": "tunnel_started",
-                "public_url": public_url,
-            }
+
+        self._logger.info("tunnel_started", payload={
+            "type": "tunnel_started",
+            "public_url": public_url,
         })
 
         # 4) Build context with cleanup
@@ -99,13 +97,13 @@ class MCPServer:
         )
 
         def cleanup() -> None:
-            logger.info("mcp_cleanup_start")
+            self._logger.info("mcp_cleanup_start")
             try:
                 tunnel_handle.stop_tunnel()
             except Exception:
-                logger.exception("tunnel_stop_error")
+                self._logger.exception("tunnel_stop_error")
             # FastMCP has no shutdown API; daemon thread will exit on process end
-            logger.info("mcp_cleanup_done")
+            self._logger.info("mcp_cleanup_done")
 
         ctx.cleanup = cleanup
         return ctx

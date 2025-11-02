@@ -36,11 +36,6 @@ class Container(containers.DeclarativeContainer):
         cache_dir=config.directories.cache_dir,
     )
 
-    mcp_server = providers.Factory(
-        MCPServer,
-        port=18080,  # Default MCP port
-    )
-
     analysis_store = providers.Singleton(
         AnalysisStore,
         analysis_dir=config.directories.logs_dir,
@@ -63,12 +58,20 @@ class Container(containers.DeclarativeContainer):
         level=config.logging.level,
     )
 
-    # LLM adapter (parameterized)
+    # MCP Server (now with logger injection)
+    mcp_server = providers.Factory(
+        MCPServer,
+        port=18080,  # Default MCP port
+        logger=logger,
+    )
+
+    # LLM adapter (now with logger injection)
     llm = providers.Factory(
         LLM,
         provider=config.llm.provider_name,
         model=config.llm.model_name,
         api_key=config.llm.api_key,
+        logger=logger,
     )
 
     # Domain services

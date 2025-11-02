@@ -73,6 +73,7 @@ def analyze(
             provider=provider,
             model=model,
             api_key=config.llm.api_key,
+            logger=container.logger(),
         )
         orchestrator = container.analysis_orchestrator()
         orchestrator._llm = llm
