@@ -11,6 +11,7 @@ import typer
 from .config import AppConfig
 from .container import Container
 from .cli_formatter import format_analyze_result, format_vulnerability_list
+from ..core.domain.exceptions import GHSANotFoundError
 from ..core.domain.models import Vulnerability
 from ..infra.llm import LLM
 
@@ -80,25 +81,38 @@ def analyze(
 
     # Execute use case
     uc = container.analyze_uc()
-    result = uc.execute(ghsa=ghsa, force_reclone=force_reclone)
+    try:
+        result = uc.execute(ghsa=ghsa, force_reclone=force_reclone)
 
-    # Output in requested format
-    if json_output:
-        # Convert AnalysisResult to dict for JSON serialization
-        result_dict = {
-            "ghsa": result.ghsa,
-            "provider": result.provider,
-            "model": result.model,
-            "verdict": result.verdict,
-            "severity": result.severity,
-            "rationale": result.rationale,
-            "evidence": result.evidence,
-            "poc_idea": result.poc_idea,
-            "raw_text": result.raw_text,
-        }
-        typer.echo(json.dumps(result_dict, ensure_ascii=False, indent=2))
-    else:
-        typer.echo(format_analyze_result(result))
+        # Output in requested format
+        if json_output:
+            # Convert AnalysisResult to dict for JSON serialization
+            result_dict = {
+                "ghsa": result.ghsa,
+                "provider": result.provider,
+                "model": result.model,
+                "verdict": result.verdict,
+                "severity": result.severity,
+                "rationale": result.rationale,
+                "evidence": result.evidence,
+                "poc_idea": result.poc_idea,
+                "raw_text": result.raw_text,
+            }
+            typer.echo(json.dumps(result_dict, ensure_ascii=False, indent=2))
+        else:
+            typer.echo(format_analyze_result(result))
+
+    except GHSANotFoundError as e:
+        # GHSA doesn't exist - clean up log file to avoid clutter
+        container.shutdown_resources()
+        if log_file.exists():
+            log_file.unlink()
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    finally:
+        # Always shutdown resources to close file handles
+        container.shutdown_resources()
 
 
 @app.command(name="list")

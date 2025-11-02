@@ -48,8 +48,8 @@ class Container(containers.DeclarativeContainer):
 
     token_gen = providers.Singleton(DefaultTokenGenerator)
 
-    # Logger (Factory: creates GHSA-specific logger from config.runtime.ghsa)
-    logger = providers.Factory(
+    # Logger (Resource: manages lifecycle with init/shutdown)
+    logger = providers.Resource(
         AnalysisLogger,
         ghsa=config.runtime.ghsa,
         logs_dir=config.directories.logs_dir,
