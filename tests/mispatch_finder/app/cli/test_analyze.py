@@ -122,6 +122,51 @@ def test_analyze_accepts_json_flag(monkeypatch):
     assert "json" not in result.stderr.lower() or result.exit_code != 2
 
 
+def test_analyze_nonexistent_ghsa_removes_log_file(tmp_path, monkeypatch):
+    """Test that analyze command removes log file when GHSA doesn't exist."""
+    from mispatch_finder.core.domain.exceptions import GHSANotFoundError
+
+    # Create a mock vulnerability adapter that raises GHSANotFoundError
+    class FailingVulnerabilityAdapter:
+        def __init__(self, **kwargs):
+            pass
+
+        def fetch_metadata(self, ghsa: str):
+            # Simulate GHSA not found (404 from API)
+            raise GHSANotFoundError(ghsa)
+
+    # Patch VulnerabilityDataAdapter to return failing adapter
+    from mispatch_finder.infra import vulnerability_data as vuln_module
+    original_adapter = vuln_module.VulnerabilityDataAdapter
+    monkeypatch.setattr(vuln_module, "VulnerabilityDataAdapter", FailingVulnerabilityAdapter)
+
+    # Setup environment
+    monkeypatch.setenv("MISPATCH_FINDER_LLM__API_KEY", "sk-test")
+    monkeypatch.setenv("MISPATCH_FINDER_GITHUB__TOKEN", "ghp-test")
+    monkeypatch.setenv("MISPATCH_FINDER_DIRECTORIES__HOME", str(tmp_path))
+
+    # Create logs directory and pre-create log file
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_file = logs_dir / "GHSA-NONEXIST-1234.jsonl"
+    log_file.write_text('{"type": "test"}\n', encoding="utf-8")
+    assert log_file.exists()
+
+    # Execute with nonexistent GHSA
+    result = runner.invoke(app, ["analyze", "GHSA-NONEXIST-1234"])
+
+    # Should exit with error code 1
+    assert result.exit_code == 1
+    # Error message should mention GHSA not found
+    assert "GHSA not found" in result.stderr or "GHSA not found" in result.stdout
+
+    # Log file should be removed
+    assert not log_file.exists()
+
+    # Restore original adapter
+    monkeypatch.setattr(vuln_module, "VulnerabilityDataAdapter", original_adapter)
+
+
 def test_analyze_end_to_end(tmp_path, monkeypatch):
     """E2E test: analyze command with mocked dependencies."""
     base, c1, c2 = _init_repo_with_two_commits(tmp_path)

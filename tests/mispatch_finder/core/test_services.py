@@ -146,7 +146,7 @@ class FakeMCP:
 class FakeLLM:
     """Fake LLM."""
     def call(self, *, prompt: str, mcp_url: str, mcp_token: str) -> str:
-        return '{"verdict": "good", "rationale": "test"}'
+        return '{"current_risk": "good", "patch_risk": "good", "reason": "test"}'
 
 
 class FakeTokenGen:
@@ -202,8 +202,9 @@ class TestAnalysisOrchestrator:
 
         # Check AnalysisResult fields
         assert result.ghsa == "GHSA-TEST-1234"
-        assert result.verdict == "good"
-        assert result.rationale == "test"
+        assert result.verdict == "good"  # current_risk
+        assert result.severity == "good"  # patch_risk
+        assert result.rationale == "test"  # reason
         assert result.raw_text is not None
         assert mcp.cleanup_called
 

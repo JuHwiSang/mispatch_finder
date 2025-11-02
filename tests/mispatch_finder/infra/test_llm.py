@@ -5,8 +5,21 @@ from mispatch_finder.infra.llm import LLM
 from mispatch_finder.infra.llm_adapters.types import LLMResponse, TokenUsage
 
 
+class FakeLogger:
+    """Fake logger for testing."""
+    def __init__(self):
+        self.logs = []
+
+    def info(self, event_type, *, payload=None):
+        self.logs.append((event_type, payload))
+
+    def exception(self, event_type):
+        self.logs.append((event_type, None))
+
+
 def test_llm_initialization():
-    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test")
+    logger = FakeLogger()
+    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test", logger=logger)
 
     assert llm._provider == "openai"
     assert llm._model == "gpt-4"
@@ -26,7 +39,8 @@ def test_llm_call_returns_raw_text(monkeypatch):
 
     monkeypatch.setattr(llm_module, "get_adapter", mock_get_adapter)
 
-    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test")
+    logger = FakeLogger()
+    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test", logger=logger)
     result = llm.call(prompt="test prompt", mcp_url="http://localhost", mcp_token="token")
 
     # Should return raw text (JSON extraction is now in JsonExtractor service)
@@ -46,7 +60,8 @@ def test_llm_call_handles_plain_text(monkeypatch):
 
     monkeypatch.setattr(llm_module, "get_adapter", mock_get_adapter)
 
-    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test")
+    logger = FakeLogger()
+    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test", logger=logger)
     result = llm.call(prompt="test", mcp_url="http://localhost", mcp_token="token")
 
     # Returns raw text
@@ -64,7 +79,8 @@ def test_llm_call_returns_any_text(monkeypatch):
 
     monkeypatch.setattr(llm_module, "get_adapter", mock_get_adapter)
 
-    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test")
+    logger = FakeLogger()
+    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test", logger=logger)
     result = llm.call(prompt="test", mcp_url="http://localhost", mcp_token="token")
 
     assert result == "No JSON here"
@@ -84,7 +100,8 @@ def test_llm_call_with_toolset(monkeypatch):
 
     monkeypatch.setattr(llm_module, "get_adapter", mock_get_adapter)
 
-    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test")
+    logger = FakeLogger()
+    llm = LLM(provider="openai", model="gpt-4", api_key="sk-test", logger=logger)
     llm.call(
         prompt="test",
         mcp_url="http://localhost:8080",
