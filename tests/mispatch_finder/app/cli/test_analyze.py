@@ -178,11 +178,15 @@ def test_analyze_end_to_end(tmp_path, monkeypatch):
     uc = container.analyze_uc()
     result = uc.execute(ghsa="GHSA-TEST-E2E", force_reclone=True)
 
-    assert result["ghsa"] == "GHSA-TEST-E2E"
-    assert result["raw_text"]
+    # Check AnalysisResult fields
+    assert result.ghsa == "GHSA-TEST-E2E"
+    assert result.verdict == "good"  # current_risk
+    assert result.severity == "good"  # patch_risk
+    assert result.rationale == "Mock LLM response"  # reason
+    assert result.raw_text is not None
 
-    data = json.loads(result["raw_text"]) if isinstance(result["raw_text"], str) else result["raw_text"]
-
+    # Also verify raw_text contains expected JSON
+    data = json.loads(result.raw_text) if isinstance(result.raw_text, str) else result.raw_text
     assert isinstance(data, dict)
     assert data["patch_risk"] == "good"
     assert data["current_risk"] == "good"

@@ -1,64 +1,55 @@
 """Tests for CLI formatter utilities."""
 
-from mispatch_finder.core.domain.models import Repository, Vulnerability
+from mispatch_finder.core.domain.models import AnalysisResult, Repository, Vulnerability
 from mispatch_finder.app.cli_formatter import format_analyze_result, format_vulnerability_list
 
 
 def test_format_analyze_result_basic():
     """Test basic analysis result formatting."""
-    result = {
-        "ghsa_id": "GHSA-1234-5678-9012",
-        "repository": {
-            "owner": "test-org",
-            "name": "test-repo",
-        },
-        "commit_hash": "abc123def456",
-        "assessment": {
-            "is_mispatch": True,
-            "confidence": "high",
-            "reasoning": "The patch was not applied correctly.",
-            "affected_files": ["src/main.py", "src/utils.py"],
-        },
-        "token_usage": {
-            "input_tokens": 1000,
-            "output_tokens": 500,
-            "total_tokens": 1500,
-        },
-    }
+    result = AnalysisResult(
+        ghsa="GHSA-1234-5678-9012",
+        provider="openai",
+        model="gpt-4",
+        verdict="bad",  # current_risk
+        severity="high",  # patch_risk
+        rationale="The patch was not applied correctly.",
+        evidence=[{"file": "src/main.py"}, {"file": "src/utils.py"}],
+        poc_idea="Test PoC idea",
+        raw_text='{"current_risk": "bad", "patch_risk": "high"}',
+    )
 
     output = format_analyze_result(result)
 
     assert "ANALYSIS RESULT" in output
     assert "GHSA-1234-5678-9012" in output
-    assert "test-org/test-repo" in output
-    assert "abc123def456" in output
-    assert "MISPATCH DETECTED" in output
-    assert "high" in output
+    assert "openai" in output
+    assert "gpt-4" in output
+    assert "BAD" in output  # Verdict uppercased
+    assert "HIGH" in output  # Severity uppercased
     assert "The patch was not applied correctly." in output
     assert "src/main.py" in output
-    assert "src/utils.py" in output
-    assert "1,000" in output  # Input tokens formatted
-    assert "500" in output  # Output tokens
-    assert "1,500" in output  # Total tokens
+    assert "Test PoC idea" in output
 
 
-def test_format_analyze_result_no_mispatch():
-    """Test formatting when no mispatch is detected."""
-    result = {
-        "ghsa_id": "GHSA-1234-5678-9012",
-        "repository": {"owner": "test-org", "name": "test-repo"},
-        "commit_hash": "abc123",
-        "assessment": {
-            "is_mispatch": False,
-            "confidence": "medium",
-            "reasoning": "Patch appears correct.",
-        },
-    }
+def test_format_analyze_result_minimal():
+    """Test formatting with minimal fields."""
+    result = AnalysisResult(
+        ghsa="GHSA-1234-5678-9012",
+        provider="",
+        model="",
+        verdict="good",
+        severity=None,
+        rationale="Patch appears correct.",
+        evidence=None,
+        poc_idea=None,
+        raw_text='{"current_risk": "good"}',
+    )
 
     output = format_analyze_result(result)
 
-    assert "NO MISPATCH" in output
-    assert "medium" in output
+    assert "GHSA-1234-5678-9012" in output
+    assert "GOOD" in output
+    assert "Patch appears correct." in output
 
 
 def test_format_vulnerability_list_simple():

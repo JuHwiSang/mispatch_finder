@@ -200,8 +200,11 @@ class TestAnalysisOrchestrator:
 
         result = orchestrator.analyze(ghsa="GHSA-TEST-1234", force_reclone=False)
 
-        assert result["ghsa"] == "GHSA-TEST-1234"
-        assert "raw_text" in result
+        # Check AnalysisResult fields
+        assert result.ghsa == "GHSA-TEST-1234"
+        assert result.verdict == "good"
+        assert result.rationale == "test"
+        assert result.raw_text is not None
         assert mcp.cleanup_called
 
     def test_orchestrator_cleanup_on_error(self):

@@ -216,7 +216,9 @@ def test_run_analysis_usecase_executes_full_flow():
     result = uc.execute(ghsa="GHSA-TEST-1234-5678", force_reclone=False)
 
     assert vuln_data.fetched == ["GHSA-TEST-1234-5678"]
-    assert result["ghsa"] == "GHSA-TEST-1234-5678"
+    assert result.ghsa == "GHSA-TEST-1234-5678"
+    assert result.verdict == "good"
+    assert result.rationale == "test"
     # provider/model are logged by LLM adapter, not in result
     assert mcp.cleanup_called
 
