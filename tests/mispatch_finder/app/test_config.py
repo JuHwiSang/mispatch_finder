@@ -45,7 +45,7 @@ def test_llm_config_defaults():
 
     assert config.api_key is None
     assert config.provider_name == "openai"
-    assert config.model_name == "gpt-4"
+    assert config.model_name == "gpt-5"
 
 
 def test_github_config_defaults():
