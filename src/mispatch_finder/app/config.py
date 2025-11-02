@@ -103,6 +103,42 @@ class AnalysisConfig(BaseSettings):
     )
 
 
+class LoggingConfig(BaseSettings):
+    """Logging configuration."""
+
+    logger_name: str = Field(
+        default="mispatch_finder",
+        description="Logger name for the application",
+    )
+
+    console_output: bool = Field(
+        default=False,
+        description="Enable human-readable console output (set to True in CLI)",
+    )
+
+    level: str = Field(
+        default="INFO",
+        description="Logging level (DEBUG, INFO, WARNING, ERROR)",
+    )
+
+
+class RuntimeConfig(BaseSettings):
+    """Runtime configuration (not from environment variables).
+
+    These values are set programmatically at runtime, not from env vars.
+    """
+
+    model_config = SettingsConfigDict(
+        frozen=False,  # Allow mutation for runtime values
+        extra="allow",
+    )
+
+    ghsa: str | None = Field(
+        default=None,
+        description="Current GHSA being analyzed (set by CLI/application layer)",
+    )
+
+
 class AppConfig(BaseSettings):
     """Root application configuration.
 
@@ -125,7 +161,7 @@ class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="MISPATCH_FINDER_",
         env_nested_delimiter="__",
-        frozen=True,
+        frozen=False,  # Allow runtime mutation
         extra="forbid",
     )
 
@@ -134,3 +170,5 @@ class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     github: GitHubConfig = Field(default_factory=GitHubConfig)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)

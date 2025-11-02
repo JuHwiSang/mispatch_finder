@@ -160,21 +160,13 @@ class LLMPort(Protocol):
         ...
 
 
-class ResultStorePort(Protocol):
-    """Port for persisting analysis results."""
-    
-    def save(self, ghsa: str, payload: dict) -> None:
-        ...
+class AnalysisStorePort(Protocol):
+    """Port for reading analysis logs.
 
-    def load(self, ghsa: str) -> Optional[dict]:
-        ...
-
-    def list_all(self) -> list[dict]:
-        ...
-
-
-class LogStorePort(Protocol):
-    """Port for reading log files."""
+    Analysis logs are stored in .jsonl files (one per GHSA).
+    Each line is a JSON log entry written by AnalysisLogger.
+    This port provides read-only access to parse and summarize logs.
+    """
 
     def read_log(self, ghsa: str, verbose: bool) -> list[str]:
         """Read and format log for a single GHSA."""

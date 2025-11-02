@@ -4,14 +4,14 @@ import logging
 from pathlib import Path
 from logging import Handler
 
-from .formatters import JSONFormatter
+from .formatters import JSONFormatter, HumanReadableFormatter
 
 
 def build_json_file_handler(path: Path, level: int = logging.INFO) -> Handler:
     """Create a file handler with JSON formatting.
 
     Args:
-        path: Path to log file
+        path: Path to log file (.jsonl)
         level: Logging level
 
     Returns:
@@ -24,16 +24,16 @@ def build_json_file_handler(path: Path, level: int = logging.INFO) -> Handler:
     return h
 
 
-def build_json_console_handler(level: int = logging.INFO) -> Handler:
-    """Create a console handler with JSON formatting.
+def build_human_console_handler(level: int = logging.INFO) -> Handler:
+    """Create a console handler with human-readable formatting.
 
     Args:
         level: Logging level
 
     Returns:
-        Configured StreamHandler with JSON formatter
+        Configured StreamHandler with human-readable formatter
     """
     h = logging.StreamHandler()
     h.setLevel(level)
-    h.setFormatter(JSONFormatter())
+    h.setFormatter(HumanReadableFormatter())
     return h

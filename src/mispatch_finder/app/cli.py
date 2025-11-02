@@ -40,6 +40,10 @@ def analyze(
     # Load config from environment variables
     config = AppConfig()
 
+    # Set runtime GHSA for logger configuration
+    config.runtime.ghsa = ghsa
+    config.logging.console_output = True  # Enable console output in CLI
+
     # User-facing status messages
     log_file = config.directories.logs_dir / f"{ghsa}.jsonl"
     if log_file.exists():

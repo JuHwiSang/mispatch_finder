@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import cast
 
 from ..domain.models import Vulnerability
-from ..ports import VulnerabilityDataPort, LogStorePort
+from ..ports import VulnerabilityDataPort, AnalysisStorePort
 
 
 class ListUseCase:
@@ -13,9 +13,9 @@ class ListUseCase:
     Business logic: Fetch vulnerabilities, filter out analyzed ones, apply limit.
     """
 
-    def __init__(self, *, vuln_data: VulnerabilityDataPort, log_store: LogStorePort) -> None:
+    def __init__(self, *, vuln_data: VulnerabilityDataPort, analysis_store: AnalysisStorePort) -> None:
         self._vuln_data = vuln_data
-        self._log_store = log_store
+        self._analysis_store = analysis_store
 
     def execute(
         self,
@@ -57,7 +57,7 @@ class ListUseCase:
             return result
 
         # Filter out analyzed items using lazy iteration
-        analyzed_ids = self._log_store.get_analyzed_ids()
+        analyzed_ids = self._analysis_store.get_analyzed_ids()
         result_filtered: list[str] | list[Vulnerability] = []
 
         for item in self._vuln_data.list_vulnerabilities_iter(

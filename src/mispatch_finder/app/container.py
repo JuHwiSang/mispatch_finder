@@ -13,8 +13,7 @@ from ..infra.vulnerability_data import VulnerabilityDataAdapter
 from ..infra.repository import Repository
 from ..infra.mcp_server import MCPServer
 from ..infra.llm import LLM
-from ..infra.result_store import ResultStore
-from ..infra.log_store import LogStore
+from ..infra.analysis_store import AnalysisStore
 from ..infra.cache import Cache
 from ..infra.logging import AnalysisLogger
 
@@ -42,14 +41,9 @@ class Container(containers.DeclarativeContainer):
         port=18080,  # Default MCP port
     )
 
-    result_store = providers.Singleton(
-        ResultStore,
-        results_dir=config.directories.logs_dir,
-    )
-
-    log_store = providers.Singleton(
-        LogStore,
-        logs_dir=config.directories.logs_dir,
+    analysis_store = providers.Singleton(
+        AnalysisStore,
+        analysis_dir=config.directories.logs_dir,
     )
 
     cache = providers.Singleton(
@@ -59,8 +53,15 @@ class Container(containers.DeclarativeContainer):
 
     token_gen = providers.Singleton(DefaultTokenGenerator)
 
-    # Logger
-    logger = providers.Singleton(AnalysisLogger, logger_name="mispatch_finder")
+    # Logger (Factory: creates GHSA-specific logger from config.runtime.ghsa)
+    logger = providers.Factory(
+        AnalysisLogger,
+        ghsa=config.runtime.ghsa,
+        logs_dir=config.directories.logs_dir,
+        logger_name=config.logging.logger_name,
+        console_output=config.logging.console_output,
+        level=config.logging.level,
+    )
 
     # LLM adapter (parameterized)
     llm = providers.Factory(
@@ -95,13 +96,12 @@ class Container(containers.DeclarativeContainer):
     analyze_uc = providers.Factory(
         AnalyzeUseCase,
         orchestrator=analysis_orchestrator,
-        store=result_store,
     )
 
     list_uc = providers.Factory(
         ListUseCase,
         vuln_data=vuln_data,
-        log_store=log_store,
+        analysis_store=analysis_store,
     )
 
     clear_cache_uc = providers.Factory(
@@ -112,5 +112,5 @@ class Container(containers.DeclarativeContainer):
 
     logs_uc = providers.Factory(
         LogsUseCase,
-        log_store=log_store,
+        analysis_store=analysis_store,
     )

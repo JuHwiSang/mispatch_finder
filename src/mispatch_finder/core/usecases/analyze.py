@@ -1,24 +1,20 @@
 from __future__ import annotations
 
-from ..ports import ResultStorePort
 from ..services import AnalysisOrchestrator
 
 
 class AnalyzeUseCase:
     """Use case for analyzing vulnerability.
 
-    Thin orchestration layer that delegates to AnalysisOrchestrator
-    and persists results.
+    Thin orchestration layer that delegates to AnalysisOrchestrator.
     """
 
     def __init__(
         self,
         *,
         orchestrator: AnalysisOrchestrator,
-        store: ResultStorePort,
     ) -> None:
         self._orchestrator = orchestrator
-        self._store = store
 
     def execute(self, *, ghsa: str, force_reclone: bool = False) -> dict[str, object]:
         """Execute analysis workflow.
@@ -31,9 +27,4 @@ class AnalyzeUseCase:
             Analysis result as dictionary
         """
         # Run analysis (orchestrator handles all business logic)
-        result = self._orchestrator.analyze(ghsa=ghsa, force_reclone=force_reclone)
-
-        # Persist result
-        self._store.save(ghsa, result)
-
-        return result
+        return self._orchestrator.analyze(ghsa=ghsa, force_reclone=force_reclone)
