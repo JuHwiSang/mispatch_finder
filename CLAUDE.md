@@ -962,6 +962,81 @@ Dual output: logs/{ghsa}.jsonl + console (if enabled)
 
 **Impact**: Complete overhaul of logging infrastructure with cleaner architecture and better developer experience
 
+### Phase 26: AnalysisResult Return Type Refactoring (2025-11-02)
+**Status**: ✅ Completed
+
+**Problem**:
+1. `AnalysisOrchestrator.analyze()` returned untyped `dict` instead of `AnalysisResult`
+2. `AnalysisResult` fields were always `None` - extracted JSON stored in `raw_text` only
+3. CLI formatter expected wrong dict structure (legacy `assessment`, `token_usage` keys)
+4. Log summary parsing only used `raw_text` - ignored structured fields even when available
+
+**Solution**: Complete refactoring to use Pydantic models throughout
+
+**Changes**:
+
+1. **AnalysisOrchestrator** ([core/services/analysis_orchestrator.py:47-209](src/mispatch_finder/core/services/analysis_orchestrator.py#L47-L209)):
+   - **Return type**: `dict[str, object]` → `AnalysisResult`
+   - **JSON parsing logic** (lines 134-178): Parse extracted JSON and populate fields
+     - Map `current_risk` → `verdict`
+     - Map `patch_risk` → `severity`
+     - Map `reason` → `rationale` (fallback to legacy `rationale`)
+     - Map `poc` → `poc_idea` (fallback to legacy `poc_idea`)
+     - Handle `evidence` as list or dict
+     - Graceful fallback on JSON parse errors
+   - **Logging**: Convert AnalysisResult to dict for JSONL serialization (lines 194-207)
+   - **Removed**: `asdict()` import and final conversion
+
+2. **AnalyzeUseCase** ([core/usecases/analyze.py:20-31](src/mispatch_finder/core/usecases/analyze.py#L20-L31)):
+   - Updated return type: `dict[str, object]` → `AnalysisResult`
+   - Added `AnalysisResult` import
+
+3. **CLI analyze command** ([app/cli.py:84-100](src/mispatch_finder/app/cli.py#L84-L100)):
+   - **JSON output**: Manual dict conversion for serialization
+   - **Human output**: Pass `AnalysisResult` directly to formatter
+
+4. **CLI Formatter** ([app/cli_formatter.py:8-66](src/mispatch_finder/app/cli_formatter.py#L8-L66)):
+   - **Parameter type**: `dict` → `AnalysisResult`
+   - **Display fields**:
+     - GHSA ID, Provider, Model (lines 23-32)
+     - Verdict → "Current Risk" (line 41)
+     - Severity → "Patch Risk" (line 45)
+     - Rationale, Evidence, PoC (lines 48-62)
+   - **Removed**: Legacy dict structure handling
+
+5. **Log Summary Parsing** ([infra/logging/log_summary.py:80-137, 175-227](src/mispatch_finder/infra/logging/log_summary.py#L80-L137)):
+   - **Priority hierarchy**:
+     1. Structured fields from AnalysisResult (`verdict`, `severity`, `rationale`, `poc_idea`)
+     2. Fallback to `raw_text` JSON parsing (new format: `current_risk`, `patch_risk`, `reason`, `poc`)
+     3. Legacy fallbacks (old format: `severity`, `rationale`, `poc_idea`)
+   - Applied to both `parse_log_details()` and `parse_log_file()`
+
+6. **Tests Updated**:
+   - [test_services.py:203-208](tests/mispatch_finder/core/test_services.py#L203-L208): Check `result.ghsa`, `result.verdict`, `result.rationale`
+   - [test_usecases.py:219-221](tests/mispatch_finder/core/test_usecases.py#L219-L221): Assert AnalysisResult fields
+   - [test_cli_formatter.py:7-52](tests/mispatch_finder/app/test_cli_formatter.py#L7-L52): Use `AnalysisResult` instances
+   - [test_analyze.py:181-193](tests/mispatch_finder/app/cli/test_analyze.py#L181-L193): Verify structured fields in E2E test
+
+**Benefits**:
+- ✅ **Type safety**: Pydantic models instead of untyped dicts
+- ✅ **Proper parsing**: Extracted JSON populates structured fields immediately
+- ✅ **Clean display**: Formatter uses proper field names (Current Risk, Patch Risk)
+- ✅ **Smart fallbacks**: Log parsing prefers structured fields, falls back to raw_text only when needed
+- ✅ **Better debugging**: All fields properly populated and visible
+
+**Field Mapping**:
+```
+LLM JSON Response → AnalysisResult → Display/Logs
+-------------------------------------------------
+current_risk      → verdict         → Current Risk
+patch_risk        → severity        → Patch Risk
+reason            → rationale       → Rationale
+poc               → poc_idea        → Proof of Concept
+evidence          → evidence        → Evidence
+```
+
+**Impact**: Updated 10 files (1 service, 1 usecase, 1 CLI, 1 formatter, 1 log parser, 5 test files)
+
 ## Active TODOs
 
 **When completing these, remove from this list and document in "Recent Changes" above.**
