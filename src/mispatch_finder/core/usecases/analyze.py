@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..domain.models import AnalysisResult
 from ..services import AnalysisOrchestrator
 
 
@@ -16,7 +17,7 @@ class AnalyzeUseCase:
     ) -> None:
         self._orchestrator = orchestrator
 
-    def execute(self, *, ghsa: str, force_reclone: bool = False) -> dict[str, object]:
+    def execute(self, *, ghsa: str, force_reclone: bool = False) -> AnalysisResult:
         """Execute analysis workflow.
 
         Args:
@@ -24,7 +25,7 @@ class AnalyzeUseCase:
             force_reclone: Whether to force re-clone repository
 
         Returns:
-            Analysis result as dictionary
+            Analysis result
         """
         # Run analysis (orchestrator handles all business logic)
         return self._orchestrator.analyze(ghsa=ghsa, force_reclone=force_reclone)

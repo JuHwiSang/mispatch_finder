@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+import json
 
 from ..domain.models import AnalysisResult, Vulnerability
 from ..domain.prompt import build_prompt
@@ -44,7 +44,7 @@ class AnalysisOrchestrator:
         self._diff_service = diff_service
         self._json_extractor = json_extractor
 
-    def analyze(self, *, ghsa: str, force_reclone: bool = False) -> dict[str, object]:
+    def analyze(self, *, ghsa: str, force_reclone: bool = False) -> AnalysisResult:
         """Execute complete analysis workflow for a GHSA.
 
         Args:
@@ -52,7 +52,7 @@ class AnalysisOrchestrator:
             force_reclone: Whether to force re-clone repository
 
         Returns:
-            Analysis result as dictionary
+            Analysis result
         """
         mcp_token = self._token_gen.generate()
         mcp_ctx = None
@@ -131,25 +131,82 @@ class AnalysisOrchestrator:
             # 6) Extract JSON from LLM response
             extracted_json = self._json_extractor.extract(raw_text)
 
-            # 7) Build result
+            # 7) Parse extracted JSON and populate result fields
+            verdict = None
+            severity = None
+            rationale = None
+            evidence = None
+            poc_idea = None
+
+            try:
+                parsed = json.loads(extracted_json)
+                if isinstance(parsed, dict):
+                    # Map new field names (current_risk, patch_risk) to verdict/severity
+                    current_risk = parsed.get("current_risk")
+                    patch_risk = parsed.get("patch_risk")
+
+                    # Verdict: use current_risk if available
+                    if isinstance(current_risk, str):
+                        verdict = current_risk
+
+                    # Severity: use patch_risk if available
+                    if isinstance(patch_risk, str):
+                        severity = patch_risk
+
+                    # Rationale: prefer 'reason', fallback to 'rationale'
+                    reason = parsed.get("reason")
+                    if isinstance(reason, str):
+                        rationale = reason
+                    elif isinstance(parsed.get("rationale"), str):
+                        rationale = parsed.get("rationale")
+
+                    # Evidence: handle both list and dict formats
+                    ev = parsed.get("evidence")
+                    if isinstance(ev, list):
+                        evidence = ev
+                    elif isinstance(ev, dict):
+                        evidence = [ev]
+
+                    # PoC: prefer 'poc', fallback to 'poc_idea'
+                    poc = parsed.get("poc")
+                    if isinstance(poc, str):
+                        poc_idea = poc
+                    elif isinstance(parsed.get("poc_idea"), str):
+                        poc_idea = parsed.get("poc_idea")
+            except json.JSONDecodeError:
+                # If parsing fails, leave all fields as None
+                pass
+
+            # 8) Build result
             result = AnalysisResult(
                 ghsa=ghsa,
                 provider="",  # Will be filled from logs
                 model="",  # Will be filled from logs
-                verdict=None,
-                severity=None,
-                rationale=None,
-                evidence=None,
-                poc_idea=None,
+                verdict=verdict,
+                severity=severity,
+                rationale=rationale,
+                evidence=evidence,
+                poc_idea=poc_idea,
                 raw_text=extracted_json,
             )
-            payload = asdict(result)
+
+            # Log with dict representation for JSON serialization
             self._logger.info("final_result", payload={
                 "type": "final_result",
-                "result": payload,
+                "result": {
+                    "ghsa": result.ghsa,
+                    "provider": result.provider,
+                    "model": result.model,
+                    "verdict": result.verdict,
+                    "severity": result.severity,
+                    "rationale": result.rationale,
+                    "evidence": result.evidence,
+                    "poc_idea": result.poc_idea,
+                    "raw_text": result.raw_text,
+                },
             })
 
-            return payload
+            return result
 
         finally:
             if mcp_ctx is not None:

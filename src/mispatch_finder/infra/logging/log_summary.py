@@ -83,40 +83,58 @@ def parse_log_details(fp: Path) -> LogDetails:
             m = res.get("model")
             if isinstance(m, str):
                 details.model = details.model or m
-            raw_text = res.get("raw_text")
-            if isinstance(raw_text, str) and raw_text.strip():
-                j = None
-                try:
-                    j = json.loads(raw_text)
-                except Exception:
-                    j = None
-                if isinstance(j, dict):
-                    cur = j.get("current_risk")
-                    pat = j.get("patch_risk")
-                    if isinstance(cur, str) and not details.current_risk:
-                        details.current_risk = cur
-                    if isinstance(pat, str) and not details.patch_risk:
-                        details.patch_risk = pat
-                    reason = j.get("reason")
-                    if isinstance(reason, str) and not details.reason:
-                        details.reason = reason
-                    poc = j.get("poc")
-                    if isinstance(poc, str) and not details.poc:
-                        details.poc = poc
 
-                    # legacy fallbacks
-                    if not details.patch_risk:
-                        sev = j.get("severity")
-                        if isinstance(sev, str):
-                            details.patch_risk = sev
-                    if not details.reason:
-                        r = j.get("rationale")
-                        if isinstance(r, str):
-                            details.reason = r
-                    if not details.poc:
-                        pi = j.get("poc_idea")
-                        if isinstance(pi, str):
-                            details.poc = pi
+            # Prefer structured fields from AnalysisResult (new format)
+            verdict = res.get("verdict")
+            severity = res.get("severity")
+            rationale = res.get("rationale")
+            poc_idea = res.get("poc_idea")
+
+            if isinstance(verdict, str) and not details.current_risk:
+                details.current_risk = verdict
+            if isinstance(severity, str) and not details.patch_risk:
+                details.patch_risk = severity
+            if isinstance(rationale, str) and not details.reason:
+                details.reason = rationale
+            if isinstance(poc_idea, str) and not details.poc:
+                details.poc = poc_idea
+
+            # Fallback to parsing raw_text (legacy format)
+            if not (details.current_risk and details.patch_risk and details.reason and details.poc):
+                raw_text = res.get("raw_text")
+                if isinstance(raw_text, str) and raw_text.strip():
+                    j = None
+                    try:
+                        j = json.loads(raw_text)
+                    except Exception:
+                        j = None
+                    if isinstance(j, dict):
+                        cur = j.get("current_risk")
+                        pat = j.get("patch_risk")
+                        if isinstance(cur, str) and not details.current_risk:
+                            details.current_risk = cur
+                        if isinstance(pat, str) and not details.patch_risk:
+                            details.patch_risk = pat
+                        reason = j.get("reason")
+                        if isinstance(reason, str) and not details.reason:
+                            details.reason = reason
+                        poc = j.get("poc")
+                        if isinstance(poc, str) and not details.poc:
+                            details.poc = poc
+
+                        # legacy fallbacks
+                        if not details.patch_risk:
+                            sev = j.get("severity")
+                            if isinstance(sev, str):
+                                details.patch_risk = sev
+                        if not details.reason:
+                            r = j.get("rationale")
+                            if isinstance(r, str):
+                                details.reason = r
+                        if not details.poc:
+                            pi = j.get("poc_idea")
+                            if isinstance(pi, str):
+                                details.poc = pi
     return details
 
 
@@ -175,38 +193,57 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
         if typ == "final_result":
             done = True
             res = payload.get("result") or {}
-            raw_text = res.get("raw_text")
-            if raw_text:
-                try:
-                    j = json.loads(raw_text)
-                    if isinstance(j, dict):
-                        cur = j.get("current_risk")
-                        pat = j.get("patch_risk")
-                        rsn = j.get("reason")
-                        pc = j.get("poc")
-                        if isinstance(cur, str):
-                            current_risk = cur
-                        if isinstance(pat, str):
-                            patch_risk = pat
-                        if isinstance(rsn, str):
-                            reason = rsn
-                        if isinstance(pc, str):
-                            poc = pc
-                        # legacy fallbacks
-                        if not patch_risk:
-                            sev = j.get("severity")
-                            if isinstance(sev, str):
-                                patch_risk = sev
-                        if not reason:
-                            r = j.get("rationale")
-                            if isinstance(r, str):
-                                reason = r
-                        if not poc:
-                            pi = j.get("poc_idea")
-                            if isinstance(pi, str):
-                                poc = pi
-                except (json.JSONDecodeError, TypeError):
-                    pass
+
+            # Prefer structured fields from AnalysisResult (new format)
+            verdict = res.get("verdict")
+            severity_val = res.get("severity")
+            rationale_val = res.get("rationale")
+            poc_idea_val = res.get("poc_idea")
+
+            if isinstance(verdict, str):
+                current_risk = verdict
+            if isinstance(severity_val, str):
+                patch_risk = severity_val
+            if isinstance(rationale_val, str):
+                reason = rationale_val
+            if isinstance(poc_idea_val, str):
+                poc = poc_idea_val
+
+            # Fallback to parsing raw_text (legacy format)
+            if not (current_risk and patch_risk and reason and poc):
+                raw_text = res.get("raw_text")
+                if raw_text:
+                    try:
+                        j = json.loads(raw_text)
+                        if isinstance(j, dict):
+                            cur = j.get("current_risk")
+                            pat = j.get("patch_risk")
+                            rsn = j.get("reason")
+                            pc = j.get("poc")
+                            if isinstance(cur, str) and not current_risk:
+                                current_risk = cur
+                            if isinstance(pat, str) and not patch_risk:
+                                patch_risk = pat
+                            if isinstance(rsn, str) and not reason:
+                                reason = rsn
+                            if isinstance(pc, str) and not poc:
+                                poc = pc
+                            # legacy fallbacks
+                            if not patch_risk:
+                                sev = j.get("severity")
+                                if isinstance(sev, str):
+                                    patch_risk = sev
+                            if not reason:
+                                r = j.get("rationale")
+                                if isinstance(r, str):
+                                    reason = r
+                            if not poc:
+                                pi = j.get("poc_idea")
+                                if isinstance(pi, str):
+                                    poc = pi
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
             m = res.get("model")
             if m:
                 model = str(m)

@@ -83,7 +83,19 @@ def analyze(
 
     # Output in requested format
     if json_output:
-        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        # Convert AnalysisResult to dict for JSON serialization
+        result_dict = {
+            "ghsa": result.ghsa,
+            "provider": result.provider,
+            "model": result.model,
+            "verdict": result.verdict,
+            "severity": result.severity,
+            "rationale": result.rationale,
+            "evidence": result.evidence,
+            "poc_idea": result.poc_idea,
+            "raw_text": result.raw_text,
+        }
+        typer.echo(json.dumps(result_dict, ensure_ascii=False, indent=2))
     else:
         typer.echo(format_analyze_result(result))
 

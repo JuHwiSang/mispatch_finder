@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from ..core.domain.models import Vulnerability
+from ..core.domain.models import AnalysisResult, Vulnerability
 
 
-def format_analyze_result(result: dict) -> str:
+def format_analyze_result(result: AnalysisResult) -> str:
     """Format analysis result for human-readable CLI output.
 
     Args:
-        result: Analysis result dictionary
+        result: Analysis result
 
     Returns:
         Formatted string for display
@@ -20,49 +20,46 @@ def format_analyze_result(result: dict) -> str:
     lines.append("=" * 80)
 
     # GHSA ID
-    if "ghsa_id" in result:
-        lines.append(f"\nGHSA ID: {result['ghsa_id']}")
+    lines.append(f"\nGHSA ID: {result.ghsa}")
 
-    # Repository info
-    if "repository" in result:
-        repo = result["repository"]
-        lines.append(f"Repository: {repo.get('owner')}/{repo.get('name')}")
-
-    # Commit hash
-    if "commit_hash" in result:
-        lines.append(f"Commit: {result['commit_hash']}")
+    # Provider and Model
+    if result.provider or result.model:
+        parts = []
+        if result.provider:
+            parts.append(f"Provider: {result.provider}")
+        if result.model:
+            parts.append(f"Model: {result.model}")
+        lines.append(" | ".join(parts))
 
     # Assessment
-    if "assessment" in result:
-        lines.append("\n" + "-" * 80)
-        lines.append("ASSESSMENT")
-        lines.append("-" * 80)
-        assessment = result["assessment"]
+    lines.append("\n" + "-" * 80)
+    lines.append("ASSESSMENT")
+    lines.append("-" * 80)
 
-        if "is_mispatch" in assessment:
-            status = "MISPATCH DETECTED" if assessment["is_mispatch"] else "NO MISPATCH"
-            lines.append(f"\nStatus: {status}")
+    # Verdict (current_risk)
+    if result.verdict:
+        lines.append(f"\nCurrent Risk: {result.verdict.upper()}")
 
-        if "confidence" in assessment:
-            lines.append(f"Confidence: {assessment['confidence']}")
+    # Severity (patch_risk)
+    if result.severity:
+        lines.append(f"Patch Risk: {result.severity.upper()}")
 
-        if "reasoning" in assessment:
-            lines.append(f"\nReasoning:\n{assessment['reasoning']}")
+    # Rationale (reason)
+    if result.rationale:
+        lines.append(f"\nRationale:\n{result.rationale}")
 
-        if "affected_files" in assessment and assessment["affected_files"]:
-            lines.append(f"\nAffected Files:")
-            for f in assessment["affected_files"]:
-                lines.append(f"  - {f}")
+    # Evidence
+    if result.evidence:
+        lines.append(f"\nEvidence:")
+        for i, ev in enumerate(result.evidence, 1):
+            if isinstance(ev, dict):
+                lines.append(f"  {i}. {ev}")
+            else:
+                lines.append(f"  {i}. {ev}")
 
-    # Token usage
-    if "token_usage" in result:
-        lines.append("\n" + "-" * 80)
-        lines.append("TOKEN USAGE")
-        lines.append("-" * 80)
-        usage = result["token_usage"]
-        lines.append(f"Input: {usage.get('input_tokens', 0):,}")
-        lines.append(f"Output: {usage.get('output_tokens', 0):,}")
-        lines.append(f"Total: {usage.get('total_tokens', 0):,}")
+    # PoC
+    if result.poc_idea:
+        lines.append(f"\nProof of Concept:\n{result.poc_idea}")
 
     lines.append("\n" + "=" * 80)
 
