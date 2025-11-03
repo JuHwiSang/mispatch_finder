@@ -121,15 +121,15 @@ Command format: `mispatch-finder <command> [options]`
 
 6. **`mcp`** - Start standalone MCP server
    ```bash
-   mispatch-finder mcp                                    # Internal server on default port
-   mispatch-finder mcp --mode external --auth            # External with authentication
-   mispatch-finder mcp --port 8080 --current /path/repo  # Custom port with repo
+   mispatch-finder mcp                                   # Local server on default port
+   mispatch-finder mcp --mode tunnel --auth             # Tunnel with authentication
+   mispatch-finder mcp --port 8080 --current /path/repo # Custom port with repo
    ```
    - UseCase: `MCPUseCase` ([core/usecases/mcp.py](src/mispatch_finder/core/usecases/mcp.py))
-   - CLI Command: `mcp()` ([app/cli.py:352](src/mispatch_finder/app/cli.py#L352))
+   - CLI Command: `mcp()` ([app/cli.py:356](src/mispatch_finder/app/cli.py#L356))
    - **Options**:
      - `--port, -p`: Port number for MCP server (default: 18080)
-     - `--mode, -m`: Server mode - `internal` (local only) or `external` (with SSH tunnel, default: internal)
+     - `--mode, -m`: Server mode - `local` (local only) or `tunnel` (with SSH tunnel, default: local)
      - `--auth, -a`: Enable authentication (generates random token)
      - `--current`: Path to current repository
      - `--previous`: Path to previous repository

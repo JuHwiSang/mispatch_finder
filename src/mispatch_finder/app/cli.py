@@ -356,25 +356,25 @@ def batch(
 @app.command()
 def mcp(
     port: int = typer.Option(18080, "--port", "-p", help="Port number for MCP server"),
-    mode: str = typer.Option("internal", "--mode", "-m", help="Server mode: 'internal' (local only) or 'external' (with tunnel)"),
+    mode: str = typer.Option("local", "--mode", "-m", help="Server mode: 'local' (local only) or 'tunnel' (with SSH tunnel)"),
     auth: bool = typer.Option(False, "--auth", "-a", help="Enable authentication (generates random token)"),
     current_repo: str | None = typer.Option(None, "--current", help="Path to current repository"),
     previous_repo: str | None = typer.Option(None, "--previous", help="Path to previous repository"),
 ):
     """Start a standalone MCP server.
 
-    By default, starts on port 18080 in internal mode (local access only) without authentication.
-    Use --mode external to expose via SSH tunnel.
+    By default, starts on port 18080 in local mode (local access only) without authentication.
+    Use --mode tunnel to expose via SSH tunnel.
     Use --auth to enable token-based authentication.
 
     Examples:
-      mispatch-finder mcp                                    # Internal server on default port
-      mispatch-finder mcp --mode external --auth            # External with authentication
+      mispatch-finder mcp                                    # Local server on default port
+      mispatch-finder mcp --mode tunnel --auth              # Tunnel with authentication
       mispatch-finder mcp --port 8080 --current /path/repo  # Custom port with repo
     """
     # Validate mode
-    if mode not in ("internal", "external"):
-        typer.echo(f"Error: Invalid mode '{mode}'. Must be 'internal' or 'external'.", err=True)
+    if mode not in ("local", "tunnel"):
+        typer.echo(f"Error: Invalid mode '{mode}'. Must be 'local' or 'tunnel'.", err=True)
         raise typer.Exit(code=1)
 
     # Convert paths to Path objects
@@ -392,7 +392,7 @@ def mcp(
 
     # Execute use case with custom MCP server
     uc = MCPUseCase(mcp_server=mcp_server)
-    use_tunnel = mode == "external"
+    use_tunnel = mode == "tunnel"
 
     typer.echo(f"Starting MCP server on port {port}...")
     typer.echo(f"Mode: {mode}")

@@ -18,6 +18,18 @@ def test_mcp_invalid_mode():
     assert result.exit_code == 1
     # Typer's CliRunner captures err=True output in result.output
     assert "Invalid mode" in result.output
+    assert "Must be 'local' or 'tunnel'" in result.output
+
+
+def test_mcp_invalid_mode_old_names():
+    """Test that old mode names (internal/external) are rejected."""
+    result1 = runner.invoke(app, ["mcp", "--mode", "internal"])
+    assert result1.exit_code == 1
+    assert "Invalid mode" in result1.output
+
+    result2 = runner.invoke(app, ["mcp", "--mode", "external"])
+    assert result2.exit_code == 1
+    assert "Invalid mode" in result2.output
 
 
 # Note: Further CLI tests are omitted because:
