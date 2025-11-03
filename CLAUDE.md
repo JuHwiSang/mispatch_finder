@@ -119,20 +119,21 @@ Command format: `mispatch-finder <command> [options]`
      - No business logic - just loops through vulnerabilities and delegates to existing `analyze` command
    - **Future consideration**: If batch logic becomes complex (e.g., parallel execution, retry strategies, distributed jobs), consider extracting to `BatchUseCase` in core layer. For now, simple subprocess loop in CLI is most efficient.
 
-6. **`mcp`** - Start standalone MCP server
+6. **`mcp <GHSA-ID>`** - Start standalone MCP server
    ```bash
-   mispatch-finder mcp                                   # Local server on default port
-   mispatch-finder mcp --mode tunnel --auth             # Tunnel with authentication
-   mispatch-finder mcp --port 8080 --current /path/repo # Custom port with repo
+   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx                      # Local server on default port
+   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode tunnel --auth # Tunnel with authentication
+   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --port 8080          # Custom port
    ```
    - UseCase: `MCPUseCase` ([core/usecases/mcp.py](src/mispatch_finder/core/usecases/mcp.py))
    - CLI Command: `mcp()` ([app/cli.py:356](src/mispatch_finder/app/cli.py#L356))
+   - **Behavior**: Fetches vulnerability metadata from GHSA ID, prepares repository workdirs (current & previous), and starts MCP server
    - **Options**:
+     - `ghsa`: GitHub Security Advisory ID (required argument)
      - `--port, -p`: Port number for MCP server (default: 18080)
      - `--mode, -m`: Server mode - `local` (local only) or `tunnel` (with SSH tunnel, default: local)
      - `--auth, -a`: Enable authentication (generates random token)
-     - `--current`: Path to current repository
-     - `--previous`: Path to previous repository
+     - `--force-reclone`: Force re-clone of repositories (default: False)
    - **Testing note**: CLI tests are minimal due to infinite loop (server keeps running). Core functionality tested at UseCase level.
 
 ## Core Domain Models
