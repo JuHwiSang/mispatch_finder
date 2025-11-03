@@ -1103,6 +1103,112 @@ SSH Tunnel → standard logging → console/file (GHSA-agnostic)
 
 **Impact**: Updated 4 files (2 infra adapters, 1 container, 1 CLI)
 
+### Phase 28: GHSA Not Found Error Handling and Logger Resource Management (2025-11-03)
+**Status**: ✅ Completed
+
+**Problem**:
+1. When GHSA doesn't exist (404), empty log files remain and clutter `logs/` directory
+2. Logger file handles not properly closed before attempting to delete log files (Windows process occupation error)
+3. No distinction between "GHSA not found" vs other errors (network, git, etc.)
+
+**Solution**: Custom exception for GHSA not found + Resource pattern for proper cleanup
+
+**Changes**:
+
+1. **Custom Exception** ([core/domain/exceptions.py](src/mispatch_finder/core/domain/exceptions.py)):
+   - Created `GHSANotFoundError(Exception)` for 404-specific errors
+   - Stores `ghsa` attribute and provides clear error message
+   - Domain-level exception (not infrastructure HTTPStatusError)
+
+2. **VulnerabilityDataAdapter** ([infra/vulnerability_data.py:107-133](src/mispatch_finder/infra/vulnerability_data.py#L107-L133)):
+   - Wraps `cve_collector` 404 errors → `GHSANotFoundError`
+   - Other HTTP errors (5xx, network) propagate unchanged
+   - Clear exception hierarchy: 404 = not found, others = infrastructure issues
+
+3. **AnalysisLogger Resource Pattern** ([infra/logging/logger.py](src/mispatch_finder/infra/logging/logger.py)):
+   - **Inheritance**: `AnalysisLogger(Resource)` for lifecycle management
+   - **init() method**: Receives parameters, sets up handlers
+     - `ghsa: str | None = None` - optional, file handler only if provided
+     - `self._handlers = []` - tracks all handlers for cleanup
+   - **shutdown() method**: Closes all file handlers
+     ```python
+     def shutdown(self, resource: "AnalysisLogger") -> None:
+         for handler in self._handlers:
+             handler.flush()  # Flush buffers
+             handler.close()  # Release file descriptors
+         self._logger.handlers.clear()
+     ```
+
+4. **Container** ([app/container.py:52-59](src/mispatch_finder/app/container.py#L52-L59)):
+   - Changed logger from `providers.Factory` → `providers.Resource`
+   - Enables `init_resources()` / `shutdown_resources()` lifecycle
+
+5. **CLI Error Handling** ([app/cli.py:84-115](src/mispatch_finder/app/cli.py#L84-L115)):
+   ```python
+   try:
+       result = uc.execute(ghsa=ghsa, force_reclone=force_reclone)
+       # Output result
+   except GHSANotFoundError as e:
+       # Only GHSA not found: clean up log file
+       container.shutdown_resources()  # Close file handles first
+       if log_file.exists():
+           log_file.unlink()  # Now safe to delete
+       typer.echo(f"Error: {e}", err=True)
+       raise typer.Exit(code=1)
+   finally:
+       # Always shutdown resources
+       container.shutdown_resources()
+   ```
+
+6. **Test Updates**:
+   - **test_llm.py**: Added `FakeLogger` class, all tests inject logger
+   - **test_services.py**: Updated `FakeLLM` to return new field names (`current_risk`, `patch_risk`, `reason`)
+   - **test_analyze.py**: New test `test_analyze_nonexistent_ghsa_removes_log_file`
+
+**Execution Flow**:
+
+✅ **Normal analysis**:
+```
+1. init_resources() - Logger opens file
+2. execute() - Analysis & logging
+3. Output result
+4. finally: shutdown_resources() - Close file
+```
+
+✅ **GHSA not found (404)**:
+```
+1. init_resources() - Logger opens file
+2. execute() - GHSANotFoundError
+3. except: shutdown_resources() - Close file
+4. except: unlink() - Delete empty log (no process occupation!)
+5. finally: shutdown_resources() - Already closed (idempotent)
+```
+
+✅ **Other errors (network, git)**:
+```
+1. init_resources() - Logger opens file
+2. execute() - Error propagates
+3. Log file remains (for debugging)
+4. finally: shutdown_resources() - Close file
+```
+
+**Benefits**:
+- ✅ **Clean logs directory**: GHSA not found → log deleted, other errors → log preserved
+- ✅ **Proper resource cleanup**: Files closed before deletion (Windows compatible)
+- ✅ **Clear error types**: `GHSANotFoundError` vs other exceptions
+- ✅ **Resource pattern**: `dependency_injector` manages lifecycle automatically
+
+**Field Mapping** (LLM Response → AnalysisResult):
+```
+current_risk → verdict   (Current Risk in display)
+patch_risk   → severity  (Patch Risk in display)
+reason       → rationale
+poc          → poc_idea
+evidence     → evidence
+```
+
+**Impact**: Updated 12 files (1 exception, 1 adapter, 1 logger, 1 container, 1 CLI, 7 test files)
+
 ## Active TODOs
 
 **When completing these, remove from this list and document in "Recent Changes" above.**
