@@ -10,11 +10,11 @@ class FakeLogger:
     def __init__(self):
         self.logs = []
 
-    def info(self, event_type, *, payload=None):
-        self.logs.append((event_type, payload))
+    def info(self, event_type, **kwargs):
+        self.logs.append((event_type, kwargs))
 
-    def exception(self, event_type):
-        self.logs.append((event_type, None))
+    def exception(self, event_type, **kwargs):
+        self.logs.append((event_type, kwargs))
 
 
 def test_llm_initialization():

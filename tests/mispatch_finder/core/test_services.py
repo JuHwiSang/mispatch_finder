@@ -157,19 +157,19 @@ class FakeTokenGen:
 
 class FakeLogger:
     """Fake logger for testing."""
-    def debug(self, message: str, payload=None) -> None:
+    def debug(self, message: str, **kwargs) -> None:
         pass
 
-    def info(self, message: str, payload=None) -> None:
+    def info(self, message: str, **kwargs) -> None:
         pass
 
-    def warning(self, message: str, payload=None) -> None:
+    def warning(self, message: str, **kwargs) -> None:
         pass
 
-    def error(self, message: str, payload=None, exc_info: bool = False) -> None:
+    def error(self, message: str, exc_info: bool = False, **kwargs) -> None:
         pass
 
-    def exception(self, message: str, payload=None) -> None:
+    def exception(self, message: str, **kwargs) -> None:
         pass
 
 
