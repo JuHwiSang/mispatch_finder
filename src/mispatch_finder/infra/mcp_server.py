@@ -30,6 +30,7 @@ class MCPServer:
         current_workdir: Path | None,
         previous_workdir: Path | None,
         auth_token: str,
+        use_tunnel: bool = True,
     ) -> MCPServerContext:
         # 1) Create child repo servers
         current_repo = None
@@ -77,18 +78,28 @@ class MCPServer:
             },
         )
 
-        # 3) Start tunnel
-        m = re.match(r"^https?://([^/:]+):(\d+)$", local_url)
-        if not m:
-            raise ValueError(f"Invalid local URL: {local_url}")
-        host, port = m.group(1), int(m.group(2))
-        public_url, tunnel_handle = Tunnel.start_tunnel(host, port)
+        # 3) Start tunnel (optional)
+        tunnel_handle = None
+        public_url = None
 
-        self._logger.info(
-            "tunnel_started",
-            type="tunnel_started",
-            public_url=public_url,
-        )
+        if use_tunnel:
+            m = re.match(r"^https?://([^/:]+):(\d+)$", local_url)
+            if not m:
+                raise ValueError(f"Invalid local URL: {local_url}")
+            host, port = m.group(1), int(m.group(2))
+            public_url, tunnel_handle = Tunnel.start_tunnel(host, port)
+
+            self._logger.info(
+                "tunnel_started",
+                type="tunnel_started",
+                public_url=public_url,
+            )
+        else:
+            self._logger.info(
+                "tunnel_skipped",
+                type="tunnel_skipped",
+                reason="use_tunnel=False",
+            )
 
         # 4) Build context with cleanup
         ctx = MCPServerContext(
@@ -100,10 +111,11 @@ class MCPServer:
 
         def cleanup() -> None:
             self._logger.info("mcp_cleanup_start")
-            try:
-                tunnel_handle.stop_tunnel()
-            except Exception:
-                self._logger.exception("tunnel_stop_error")
+            if tunnel_handle is not None:
+                try:
+                    tunnel_handle.stop_tunnel()
+                except Exception:
+                    self._logger.exception("tunnel_stop_error")
             # FastMCP has no shutdown API; daemon thread will exit on process end
             self._logger.info("mcp_cleanup_done")
 

@@ -106,6 +106,7 @@ class AnalysisOrchestrator:
                 current_workdir=current,
                 previous_workdir=previous,
                 auth_token=mcp_token,
+                use_tunnel=True,  # Analysis always requires tunnel for LLM access
             )
             self._logger.info(
                 "mcp_ready",
@@ -115,6 +116,10 @@ class AnalysisOrchestrator:
                 has_current=mcp_ctx.has_current,
                 has_previous=mcp_ctx.has_previous,
             )
+
+            # Verify tunnel was established (required for LLM access)
+            if mcp_ctx.public_url is None:
+                raise RuntimeError("MCP tunnel failed to start - public_url is None")
 
             # 5) Build prompt and call LLM
             prompt = build_prompt(

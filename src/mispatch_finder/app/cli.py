@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import typer
@@ -13,7 +15,9 @@ from .container import Container
 from .cli_formatter import format_analyze_result, format_vulnerability_list
 from ..core.domain.exceptions import GHSANotFoundError
 from ..core.domain.models import Vulnerability
+from ..core.usecases.mcp import MCPUseCase
 from ..infra.llm import LLM
+from ..infra.mcp_server import MCPServer
 
 try:
     from dotenv import load_dotenv
@@ -347,6 +351,97 @@ def batch(
             processed += 1
 
     typer.echo(f"\nBatch analysis complete: {processed} processed, {skipped} skipped.")
+
+
+@app.command()
+def mcp(
+    port: int = typer.Option(18080, "--port", "-p", help="Port number for MCP server"),
+    mode: str = typer.Option("internal", "--mode", "-m", help="Server mode: 'internal' (local only) or 'external' (with tunnel)"),
+    auth: bool = typer.Option(False, "--auth", "-a", help="Enable authentication (generates random token)"),
+    current_repo: str | None = typer.Option(None, "--current", help="Path to current repository"),
+    previous_repo: str | None = typer.Option(None, "--previous", help="Path to previous repository"),
+):
+    """Start a standalone MCP server.
+
+    By default, starts on port 18080 in internal mode (local access only) without authentication.
+    Use --mode external to expose via SSH tunnel.
+    Use --auth to enable token-based authentication.
+
+    Examples:
+      mispatch-finder mcp                                    # Internal server on default port
+      mispatch-finder mcp --mode external --auth            # External with authentication
+      mispatch-finder mcp --port 8080 --current /path/repo  # Custom port with repo
+    """
+    # Validate mode
+    if mode not in ("internal", "external"):
+        typer.echo(f"Error: Invalid mode '{mode}'. Must be 'internal' or 'external'.", err=True)
+        raise typer.Exit(code=1)
+
+    # Convert paths to Path objects
+    current_path = Path(current_repo) if current_repo else None
+    previous_path = Path(previous_repo) if previous_repo else None
+
+    # Create container
+    config = AppConfig()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
+
+    # Create MCP server with custom port
+    mcp_server = MCPServer(port=port, logger=container.logger())
+
+    # Execute use case with custom MCP server
+    uc = MCPUseCase(mcp_server=mcp_server)
+    use_tunnel = mode == "external"
+
+    typer.echo(f"Starting MCP server on port {port}...")
+    typer.echo(f"Mode: {mode}")
+    typer.echo(f"Authentication: {'enabled' if auth else 'disabled'}")
+
+    try:
+        result = uc.execute(
+            port=port,
+            use_tunnel=use_tunnel,
+            use_auth=auth,
+            current_workdir=current_path,
+            previous_workdir=previous_path,
+        )
+
+        typer.echo("\n" + "=" * 60)
+        typer.echo("MCP Server Started Successfully")
+        typer.echo("=" * 60)
+        typer.echo(f"Local URL:  {result['local_url']}")
+
+        if result["public_url"]:
+            typer.echo(f"Public URL: {result['public_url']}")
+
+        if result["auth_token"]:
+            typer.echo(f"\nAuthentication Token:")
+            typer.echo(f"  {result['auth_token']}")
+
+        typer.echo("\nPress Ctrl+C to stop the server...")
+        typer.echo("=" * 60)
+
+        # Keep the server running
+        def signal_handler(sig, frame):  # noqa: ARG001
+            typer.echo("\n\nShutting down MCP server...")
+            container.shutdown_resources()
+            raise typer.Exit(code=0)
+
+        signal.signal(signal.SIGINT, signal_handler)
+
+        # Keep alive
+        while True:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        typer.echo("\n\nShutting down MCP server...")
+        container.shutdown_resources()
+        raise typer.Exit(code=0)
+    except Exception as e:
+        typer.echo(f"Error starting MCP server: {e}", err=True)
+        container.shutdown_resources()
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

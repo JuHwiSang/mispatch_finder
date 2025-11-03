@@ -8,6 +8,7 @@ from ..core.usecases.analyze import AnalyzeUseCase
 from ..core.usecases.list import ListUseCase
 from ..core.usecases.clear_cache import ClearCacheUseCase
 from ..core.usecases.logs import LogsUseCase
+from ..core.usecases.mcp import MCPUseCase
 from ..core.services import DiffService, JsonExtractor, AnalysisOrchestrator
 from ..infra.vulnerability_data import VulnerabilityDataAdapter
 from ..infra.repository import Repository
@@ -116,4 +117,9 @@ class Container(containers.DeclarativeContainer):
     logs_uc = providers.Factory(
         LogsUseCase,
         analysis_store=analysis_store,
+    )
+
+    mcp_uc = providers.Factory(
+        MCPUseCase,
+        mcp_server=mcp_server,
     )

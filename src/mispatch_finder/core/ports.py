@@ -123,10 +123,10 @@ class RepositoryPort(Protocol):
 class MCPServerContext:
     """MCP server runtime context."""
     local_url: str
-    public_url: str
+    public_url: str | None
     has_current: bool
     has_previous: bool
-    
+
     def cleanup(self) -> None:
         """Cleanup hook called by context manager."""
         pass
@@ -134,15 +134,16 @@ class MCPServerContext:
 
 class MCPServerPort(Protocol):
     """Port for MCP server lifecycle."""
-    
+
     def start_servers(
         self,
         *,
         current_workdir: Optional[Path],
         previous_workdir: Optional[Path],
         auth_token: str,
+        use_tunnel: bool = True,
     ) -> MCPServerContext:
-        """Start child servers, aggregator, and tunnel. Return context."""
+        """Start child servers, aggregator, and optionally tunnel. Return context."""
         ...
 
 
