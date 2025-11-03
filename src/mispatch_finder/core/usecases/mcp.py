@@ -66,6 +66,7 @@ class MCPUseCase:
             current_workdir=current_workdir,
             previous_workdir=previous_workdir,
             auth_token=auth_token,
+            port=port,
             use_tunnel=use_tunnel,
         )
 

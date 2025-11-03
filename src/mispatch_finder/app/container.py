@@ -62,7 +62,6 @@ class Container(containers.DeclarativeContainer):
     # MCP Server (now with logger injection)
     mcp_server = providers.Factory(
         MCPServer,
-        port=18080,  # Default MCP port
         logger=logger,
     )
 
@@ -94,6 +93,7 @@ class Container(containers.DeclarativeContainer):
         logger=logger,
         diff_service=diff_service,
         json_extractor=json_extractor,
+        mcp_port=config.analysis.mcp_port,
     )
 
     # Use cases
@@ -122,4 +122,7 @@ class Container(containers.DeclarativeContainer):
     mcp_uc = providers.Factory(
         MCPUseCase,
         mcp_server=mcp_server,
+        vuln_data=vuln_data,
+        repo=repo,
+        token_gen=token_gen,
     )

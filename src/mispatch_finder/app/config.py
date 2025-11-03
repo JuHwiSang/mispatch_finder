@@ -102,6 +102,11 @@ class AnalysisConfig(BaseSettings):
         description="Maximum diff characters to include in LLM prompt (middle-truncated if exceeded)",
     )
 
+    mcp_port: int = Field(
+        default=18080,
+        description="Port number for MCP server",
+    )
+
 
 class LoggingConfig(BaseSettings):
     """Logging configuration."""

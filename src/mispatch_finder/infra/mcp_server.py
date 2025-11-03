@@ -20,8 +20,7 @@ debug_logger = logging.getLogger(__name__)
 
 
 class MCPServer:
-    def __init__(self, *, port: int = 18080, logger: LoggerPort) -> None:
-        self._port = port
+    def __init__(self, *, logger: LoggerPort) -> None:
         self._logger = logger
 
     def start_servers(
@@ -30,6 +29,7 @@ class MCPServer:
         current_workdir: Path | None,
         previous_workdir: Path | None,
         auth_token: str,
+        port: int,
         use_tunnel: bool = True,
     ) -> MCPServerContext:
         # 1) Create child repo servers
@@ -62,11 +62,11 @@ class MCPServer:
 
         # Start aggregator in daemon thread
         def run_app() -> None:
-            app.run(transport="streamable-http", port=self._port)
+            app.run(transport="streamable-http", port=port)
 
         thread = threading.Thread(target=run_app, daemon=True)
         thread.start()
-        local_url = f"http://127.0.0.1:{self._port}"
+        local_url = f"http://127.0.0.1:{port}"
 
         self._logger.info(
             "aggregator_started",

@@ -141,6 +141,7 @@ class MCPServerPort(Protocol):
         current_workdir: Optional[Path],
         previous_workdir: Optional[Path],
         auth_token: str,
+        port: int,
         use_tunnel: bool = True,
     ) -> MCPServerContext:
         """Start child servers, aggregator, and optionally tunnel. Return context."""

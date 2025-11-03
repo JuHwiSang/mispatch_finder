@@ -34,6 +34,7 @@ class AnalysisOrchestrator:
         logger: LoggerPort,
         diff_service: DiffService,
         json_extractor: JsonExtractor,
+        mcp_port: int,
     ) -> None:
         self._vuln_data = vuln_data
         self._repo = repo
@@ -43,6 +44,7 @@ class AnalysisOrchestrator:
         self._logger = logger
         self._diff_service = diff_service
         self._json_extractor = json_extractor
+        self._mcp_port = mcp_port
 
     def analyze(self, *, ghsa: str, force_reclone: bool = False) -> AnalysisResult:
         """Execute complete analysis workflow for a GHSA.
@@ -106,6 +108,7 @@ class AnalysisOrchestrator:
                 current_workdir=current,
                 previous_workdir=previous,
                 auth_token=mcp_token,
+                port=self._mcp_port,
                 use_tunnel=True,  # Analysis always requires tunnel for LLM access
             )
             self._logger.info(
