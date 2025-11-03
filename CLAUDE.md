@@ -404,6 +404,25 @@ Optional (with defaults):
 - **Test updates**: All 11 tests updated with new dependencies, token generation tests fixed
 - **Documentation**: CLAUDE.md and CLI help updated to reflect new interface
 
+### MCP Port Configuration Refactoring (11-04)
+- **Design improvement**: Port parameter moved from `__init__` to `start_servers()`
+  - **Before**: `MCPServer.__init__(port=18080, logger=...)` - port decided at construction time
+  - **After**: `MCPServer.__init__(logger=...)` + `start_servers(port=..., ...)` - port decided at runtime
+- **Rationale**: Port is a runtime parameter that should be specified when starting the server, not during object construction
+- **Configuration**: Added `AnalysisConfig.mcp_port` (default: 18080, env: `MISPATCH_FINDER_ANALYSIS__MCP_PORT`)
+- **Protocol update**: `MCPServerPort.start_servers()` now requires `port: int` parameter
+- **Service layer**: `AnalysisOrchestrator` receives `mcp_port` via DI and passes it to `start_servers()`
+- **UseCase layer**: `MCPUseCase.execute()` already had `port` parameter, now passes it to `start_servers()`
+- **Container**:
+  - Removed `port=18080` from `mcp_server` provider
+  - Added `mcp_port=config.analysis.mcp_port` to `analysis_orchestrator` provider
+  - Fixed `mcp_uc` provider with missing dependencies (`vuln_data`, `repo`, `token_gen`)
+- **Test updates**: All Fake/Mock implementations updated with `port` parameter in `start_servers()`
+  - `tests/core/usecases/conftest.py` - FakeMCP
+  - `tests/app/conftest.py` - MockMCPServer
+  - `tests/core/test_services.py` - FakeMCP (2 orchestrator tests)
+  - `tests/core/usecases/test_analyze.py` - orchestrator construction
+
 ### Disabled Features
 - **clear command**: Resource conflict with cve_collector (TODO: define semantics)
 
