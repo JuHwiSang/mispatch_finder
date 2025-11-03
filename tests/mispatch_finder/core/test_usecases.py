@@ -16,6 +16,7 @@ from mispatch_finder.core.domain.models import Vulnerability, Repository
 from mispatch_finder.core.usecases.analyze import AnalyzeUseCase
 from mispatch_finder.core.usecases.list import ListUseCase
 from mispatch_finder.core.usecases.clear_cache import ClearCacheUseCase
+from mispatch_finder.core.usecases.mcp import MCPUseCase
 
 
 class FakeVulnRepo:
@@ -125,13 +126,15 @@ class FakeRepo:
 class FakeMCP:
     def __init__(self):
         self.cleanup_called = False
+        self.last_use_tunnel = None
 
-    def start_servers(self, *, current_workdir, previous_workdir, auth_token) -> MCPServerContext:
+    def start_servers(self, *, current_workdir, previous_workdir, auth_token, use_tunnel: bool = True) -> MCPServerContext:
+        self.last_use_tunnel = use_tunnel
         ctx = MCPServerContext(
             local_url="http://127.0.0.1:18080",
-            public_url="https://test.lhr.life",
-            has_current=True,
-            has_previous=True,
+            public_url="https://test.lhr.life" if use_tunnel else None,
+            has_current=current_workdir is not None,
+            has_previous=previous_workdir is not None,
         )
         ctx.cleanup = lambda: setattr(self, "cleanup_called", True)
         return ctx
@@ -344,4 +347,84 @@ def test_clear_cache_usecase_with_prefix():
 
     assert cache.cleared
     assert vuln_data.cache_cleared_with == ["osv"]
+
+
+class TestMCPUseCase:
+    """Tests for MCPUseCase."""
+
+    def test_execute_with_tunnel_and_auth(self):
+        """Test MCP server start with tunnel and authentication."""
+        mcp = FakeMCP()
+        uc = MCPUseCase(mcp_server=mcp)
+
+        result = uc.execute(
+            port=8080,
+            use_tunnel=True,
+            use_auth=True,
+            current_workdir=Path("/fake/current"),
+            previous_workdir=Path("/fake/previous"),
+        )
+
+        # Check that tunnel was enabled
+        assert mcp.last_use_tunnel is True
+
+        # Check result structure
+        assert result["local_url"] == "http://127.0.0.1:18080"
+        assert result["public_url"] == "https://test.lhr.life"
+        assert result["auth_token"] is not None
+        assert len(result["auth_token"]) > 0  # Random token generated
+
+    def test_execute_without_tunnel(self):
+        """Test MCP server start without tunnel (internal mode)."""
+        mcp = FakeMCP()
+        uc = MCPUseCase(mcp_server=mcp)
+
+        result = uc.execute(
+            port=8080,
+            use_tunnel=False,
+            use_auth=False,
+            current_workdir=Path("/fake/current"),
+            previous_workdir=None,
+        )
+
+        # Check that tunnel was disabled
+        assert mcp.last_use_tunnel is False
+
+        # Check result structure
+        assert result["local_url"] == "http://127.0.0.1:18080"
+        assert result["public_url"] is None  # No public URL when tunnel disabled
+        assert result["auth_token"] is None  # No auth token when auth disabled
+
+    def test_execute_without_auth(self):
+        """Test MCP server start with tunnel but without authentication."""
+        mcp = FakeMCP()
+        uc = MCPUseCase(mcp_server=mcp)
+
+        result = uc.execute(
+            port=8080,
+            use_tunnel=True,
+            use_auth=False,
+            current_workdir=None,
+            previous_workdir=None,
+        )
+
+        # Check result structure
+        assert result["local_url"] == "http://127.0.0.1:18080"
+        assert result["public_url"] == "https://test.lhr.life"
+        assert result["auth_token"] is None  # No auth token when auth disabled
+
+    def test_auth_token_generation(self):
+        """Test that auth tokens are randomly generated."""
+        mcp = FakeMCP()
+        uc = MCPUseCase(mcp_server=mcp)
+
+        # Generate two tokens
+        result1 = uc.execute(port=8080, use_tunnel=False, use_auth=True)
+        result2 = uc.execute(port=8080, use_tunnel=False, use_auth=True)
+
+        # Tokens should be different (random)
+        assert result1["auth_token"] != result2["auth_token"]
+        # Both should be non-empty
+        assert result1["auth_token"] is not None and len(result1["auth_token"]) > 0
+        assert result2["auth_token"] is not None and len(result2["auth_token"]) > 0
 

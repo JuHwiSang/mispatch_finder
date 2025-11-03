@@ -142,10 +142,10 @@ class MockMCPServer:
     def __init__(self, **kwargs):
         pass
 
-    def start_servers(self, *, current_workdir, previous_workdir, auth_token: str) -> MCPServerContext:
+    def start_servers(self, *, current_workdir, previous_workdir, auth_token: str, use_tunnel: bool = True) -> MCPServerContext:
         return MCPServerContext(
             local_url="http://127.0.0.1:18080",
-            public_url="http://mock.test",
+            public_url="http://mock.test" if use_tunnel else None,
             has_current=current_workdir is not None,
             has_previous=previous_workdir is not None,
         )

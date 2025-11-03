@@ -131,11 +131,13 @@ class FakeMCP:
     """Fake MCP server."""
     def __init__(self):
         self.cleanup_called = False
+        self.last_use_tunnel = None
 
-    def start_servers(self, *, current_workdir, previous_workdir, auth_token) -> MCPServerContext:
+    def start_servers(self, *, current_workdir, previous_workdir, auth_token, use_tunnel: bool = True) -> MCPServerContext:
+        self.last_use_tunnel = use_tunnel
         ctx = MCPServerContext(
             local_url="http://127.0.0.1:18080",
-            public_url="https://test.example.com",
+            public_url="https://test.example.com" if use_tunnel else None,
             has_current=current_workdir is not None,
             has_previous=previous_workdir is not None,
         )
