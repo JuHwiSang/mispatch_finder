@@ -119,7 +119,7 @@ class FakeMCP:
         self.last_auth_token = None
         self.start_servers_calls = []
 
-    def start_servers(self, *, current_workdir, previous_workdir, auth_token, use_tunnel: bool = True) -> MCPServerContext:
+    def start_servers(self, *, current_workdir, previous_workdir, auth_token, port: int, use_tunnel: bool = True) -> MCPServerContext:
         self.last_use_tunnel = use_tunnel
         self.last_current_workdir = current_workdir
         self.last_previous_workdir = previous_workdir
@@ -128,6 +128,7 @@ class FakeMCP:
             "current_workdir": current_workdir,
             "previous_workdir": previous_workdir,
             "auth_token": auth_token,
+            "port": port,
             "use_tunnel": use_tunnel,
         })
         ctx = MCPServerContext(

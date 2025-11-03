@@ -28,6 +28,7 @@ def test_run_analysis_usecase_executes_full_flow():
         logger=logger,
         diff_service=diff_service,
         json_extractor=json_extractor,
+        mcp_port=18080,
     )
 
     # Create use case (now much simpler)

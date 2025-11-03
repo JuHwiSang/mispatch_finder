@@ -133,10 +133,10 @@ class FakeMCP:
         self.cleanup_called = False
         self.last_use_tunnel = None
 
-    def start_servers(self, *, current_workdir, previous_workdir, auth_token, use_tunnel: bool = True) -> MCPServerContext:
+    def start_servers(self, *, current_workdir, previous_workdir, auth_token, port: int, use_tunnel: bool = True) -> MCPServerContext:
         self.last_use_tunnel = use_tunnel
         ctx = MCPServerContext(
-            local_url="http://127.0.0.1:18080",
+            local_url=f"http://127.0.0.1:{port}",
             public_url="https://test.example.com" if use_tunnel else None,
             has_current=current_workdir is not None,
             has_previous=previous_workdir is not None,
@@ -198,6 +198,7 @@ class TestAnalysisOrchestrator:
             logger=logger,
             diff_service=diff_service,
             json_extractor=json_extractor,
+            mcp_port=18080,
         )
 
         result = orchestrator.analyze(ghsa="GHSA-TEST-1234", force_reclone=False)
@@ -234,6 +235,7 @@ class TestAnalysisOrchestrator:
             logger=logger,
             diff_service=diff_service,
             json_extractor=json_extractor,
+            mcp_port=18080,
         )
 
         with pytest.raises(RuntimeError, match="LLM error"):
