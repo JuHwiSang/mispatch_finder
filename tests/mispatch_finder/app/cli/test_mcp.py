@@ -12,9 +12,16 @@ from mispatch_finder.app.cli import app
 runner = CliRunner()
 
 
+def test_mcp_missing_ghsa_argument():
+    """Test mcp command requires GHSA argument."""
+    result = runner.invoke(app, ["mcp"])
+    assert result.exit_code != 0
+    # Should fail due to missing required argument
+
+
 def test_mcp_invalid_mode():
     """Test mcp command with invalid mode validation."""
-    result = runner.invoke(app, ["mcp", "--mode", "invalid"])
+    result = runner.invoke(app, ["mcp", "GHSA-TEST-1234-5678", "--mode", "invalid"])
     assert result.exit_code == 1
     # Typer's CliRunner captures err=True output in result.output
     assert "Invalid mode" in result.output
@@ -23,11 +30,11 @@ def test_mcp_invalid_mode():
 
 def test_mcp_invalid_mode_old_names():
     """Test that old mode names (internal/external) are rejected."""
-    result1 = runner.invoke(app, ["mcp", "--mode", "internal"])
+    result1 = runner.invoke(app, ["mcp", "GHSA-TEST", "--mode", "internal"])
     assert result1.exit_code == 1
     assert "Invalid mode" in result1.output
 
-    result2 = runner.invoke(app, ["mcp", "--mode", "external"])
+    result2 = runner.invoke(app, ["mcp", "GHSA-TEST", "--mode", "external"])
     assert result2.exit_code == 1
     assert "Invalid mode" in result2.output
 

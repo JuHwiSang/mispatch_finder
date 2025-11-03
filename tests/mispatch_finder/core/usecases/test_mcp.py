@@ -3,21 +3,26 @@ from pathlib import Path
 
 from mispatch_finder.core.usecases.mcp import MCPUseCase
 
-from tests.mispatch_finder.core.usecases.conftest import FakeMCP
+from tests.mispatch_finder.core.usecases.conftest import FakeMCP, FakeVulnRepo, FakeRepo, FakeTokenGen
 
 
 def test_execute_with_tunnel_and_auth():
     """Test MCP server start with tunnel and authentication."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     result = uc.execute(
+        ghsa="GHSA-TEST-1234-5678",
         port=8080,
         use_tunnel=True,
         use_auth=True,
-        current_workdir=Path("/fake/current"),
-        previous_workdir=Path("/fake/previous"),
     )
+
+    # Check that vulnerability was fetched
+    assert vuln_data.fetched == ["GHSA-TEST-1234-5678"]
 
     # Check that tunnel was enabled
     assert mcp.last_use_tunnel is True
@@ -30,16 +35,18 @@ def test_execute_with_tunnel_and_auth():
 
 
 def test_execute_without_tunnel():
-    """Test MCP server start without tunnel (internal mode)."""
+    """Test MCP server start without tunnel (local mode)."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     result = uc.execute(
+        ghsa="GHSA-TEST-1234-5678",
         port=8080,
         use_tunnel=False,
         use_auth=False,
-        current_workdir=Path("/fake/current"),
-        previous_workdir=None,
     )
 
     # Check that tunnel was disabled
@@ -54,14 +61,16 @@ def test_execute_without_tunnel():
 def test_execute_without_auth():
     """Test MCP server start with tunnel but without authentication."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     result = uc.execute(
+        ghsa="GHSA-TEST-1234-5678",
         port=8080,
         use_tunnel=True,
         use_auth=False,
-        current_workdir=None,
-        previous_workdir=None,
     )
 
     # Check result structure
@@ -71,30 +80,34 @@ def test_execute_without_auth():
 
 
 def test_auth_token_generation():
-    """Test that auth tokens are randomly generated."""
+    """Test that auth tokens are generated via TokenGenerator."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     # Generate two tokens
-    result1 = uc.execute(port=8080, use_tunnel=False, use_auth=True)
-    result2 = uc.execute(port=8080, use_tunnel=False, use_auth=True)
+    result1 = uc.execute(ghsa="GHSA-1111-2222-3333", port=8080, use_tunnel=False, use_auth=True)
+    result2 = uc.execute(ghsa="GHSA-4444-5555-6666", port=8080, use_tunnel=False, use_auth=True)
 
-    # Tokens should be different (random)
-    assert result1["auth_token"] != result2["auth_token"]
-    # Both should be non-empty
-    assert result1["auth_token"] is not None and len(result1["auth_token"]) > 0
-    assert result2["auth_token"] is not None and len(result2["auth_token"]) > 0
+    # Both should have the same token from FakeTokenGen
+    assert result1["auth_token"] == "fake-token-12345"
+    assert result2["auth_token"] == "fake-token-12345"
 
 
 def test_port_parameter_passed_correctly():
     """Test that port parameter is accepted (though not used in fake)."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     # Different port numbers should not cause errors
-    result1 = uc.execute(port=8080, use_tunnel=False, use_auth=False)
-    result2 = uc.execute(port=9090, use_tunnel=False, use_auth=False)
-    result3 = uc.execute(port=18080, use_tunnel=False, use_auth=False)
+    result1 = uc.execute(ghsa="GHSA-TEST", port=8080, use_tunnel=False, use_auth=False)
+    result2 = uc.execute(ghsa="GHSA-TEST", port=9090, use_tunnel=False, use_auth=False)
+    result3 = uc.execute(ghsa="GHSA-TEST", port=18080, use_tunnel=False, use_auth=False)
 
     # All should succeed
     assert result1["local_url"] is not None
@@ -102,93 +115,64 @@ def test_port_parameter_passed_correctly():
     assert result3["local_url"] is not None
 
 
-def test_current_workdir_only():
-    """Test MCP server with only current workdir."""
+def test_workdirs_prepared_from_ghsa():
+    """Test that workdirs are prepared from GHSA."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     result = uc.execute(
+        ghsa="GHSA-TEST-1234-5678",
         port=8080,
         use_tunnel=False,
         use_auth=False,
-        current_workdir=Path("/fake/current"),
-        previous_workdir=None,
     )
 
-    # Verify workdir was passed to MCP server
-    assert mcp.last_current_workdir == Path("/fake/current")
-    assert mcp.last_previous_workdir is None
-    assert result["local_url"] is not None
+    # Verify vulnerability was fetched
+    assert vuln_data.fetched == ["GHSA-TEST-1234-5678"]
 
-
-def test_previous_workdir_only():
-    """Test MCP server with only previous workdir."""
-    mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
-
-    result = uc.execute(
-        port=8080,
-        use_tunnel=False,
-        use_auth=False,
-        current_workdir=None,
-        previous_workdir=Path("/fake/previous"),
-    )
-
-    # Verify workdir was passed to MCP server
-    assert mcp.last_current_workdir is None
-    assert mcp.last_previous_workdir == Path("/fake/previous")
-    assert result["local_url"] is not None
-
-
-def test_both_workdirs():
-    """Test MCP server with both current and previous workdirs."""
-    mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
-
-    result = uc.execute(
-        port=8080,
-        use_tunnel=False,
-        use_auth=False,
-        current_workdir=Path("/fake/current"),
-        previous_workdir=Path("/fake/previous"),
-    )
-
-    # Verify both workdirs were passed
+    # Verify workdirs were prepared by FakeRepo
     assert mcp.last_current_workdir == Path("/fake/current")
     assert mcp.last_previous_workdir == Path("/fake/previous")
     assert result["local_url"] is not None
 
 
-def test_no_workdirs():
-    """Test MCP server with no workdirs (standalone mode)."""
+def test_force_reclone_parameter():
+    """Test force_reclone parameter is passed to repository."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
+    # Test with force_reclone=True
     result = uc.execute(
+        ghsa="GHSA-TEST",
         port=8080,
         use_tunnel=False,
         use_auth=False,
-        current_workdir=None,
-        previous_workdir=None,
+        force_reclone=True,
     )
 
-    # Verify no workdirs were passed
-    assert mcp.last_current_workdir is None
-    assert mcp.last_previous_workdir is None
+    # Should succeed (FakeRepo doesn't track force_reclone, but parameter is accepted)
     assert result["local_url"] is not None
 
 
 def test_auth_token_with_tunnel():
     """Test that auth token works with tunnel enabled."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     result = uc.execute(
+        ghsa="GHSA-TEST",
         port=8080,
         use_tunnel=True,
         use_auth=True,
-        current_workdir=None,
-        previous_workdir=None,
     )
 
     # Should have both public URL and auth token
@@ -200,16 +184,18 @@ def test_auth_token_with_tunnel():
 
 
 def test_auth_token_without_tunnel():
-    """Test that auth token works without tunnel (internal mode)."""
+    """Test that auth token works without tunnel (local mode)."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     result = uc.execute(
+        ghsa="GHSA-TEST",
         port=8080,
         use_tunnel=False,
         use_auth=True,
-        current_workdir=None,
-        previous_workdir=None,
     )
 
     # Should have auth token but no public URL
@@ -221,24 +207,25 @@ def test_auth_token_without_tunnel():
 def test_multiple_invocations():
     """Test that multiple invocations work correctly."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
     # First invocation
     result1 = uc.execute(
+        ghsa="GHSA-1111",
         port=8080,
         use_tunnel=True,
         use_auth=True,
-        current_workdir=Path("/fake/current1"),
-        previous_workdir=None,
     )
 
     # Second invocation with different parameters
     result2 = uc.execute(
+        ghsa="GHSA-2222",
         port=9090,
         use_tunnel=False,
         use_auth=False,
-        current_workdir=Path("/fake/current2"),
-        previous_workdir=Path("/fake/previous2"),
     )
 
     # Both should succeed independently
@@ -253,16 +240,19 @@ def test_multiple_invocations():
     assert mcp.start_servers_calls[0]["use_tunnel"] is True
     assert mcp.start_servers_calls[1]["use_tunnel"] is False
 
+    # Check that different GHSAs were fetched
+    assert vuln_data.fetched == ["GHSA-1111", "GHSA-2222"]
 
-def test_auth_token_length():
-    """Test that generated auth tokens have reasonable length."""
+
+def test_auth_token_uses_token_generator():
+    """Test that auth token is generated via TokenGeneratorPort."""
     mcp = FakeMCP()
-    uc = MCPUseCase(mcp_server=mcp)
+    vuln_data = FakeVulnRepo()
+    repo = FakeRepo()
+    token_gen = FakeTokenGen()
+    uc = MCPUseCase(mcp_server=mcp, vuln_data=vuln_data, repo=repo, token_gen=token_gen)
 
-    result = uc.execute(port=8080, use_tunnel=False, use_auth=True)
+    result = uc.execute(ghsa="GHSA-TEST", port=8080, use_tunnel=False, use_auth=True)
 
-    # secrets.token_urlsafe(32) generates ~43 characters (32 bytes base64)
-    token = result["auth_token"]
-    assert token is not None
-    assert len(token) >= 40  # Should be at least 40 characters
-    assert len(token) <= 50  # Should not be excessively long
+    # Should use FakeTokenGen's token
+    assert result["auth_token"] == "fake-token-12345"
