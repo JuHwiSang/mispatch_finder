@@ -246,6 +246,29 @@ def logs(
 
 
 @app.command()
+def prompt(
+    ghsa: str = typer.Argument(..., help="GHSA identifier, e.g., GHSA-xxxx-xxxx-xxxx"),
+    force_reclone: bool = typer.Option(False, '--force-reclone', help="Force re-clone repo cache"),
+):
+    """Display the raw analysis prompt for a given GHSA."""
+    # Create container and execute
+    config = AppConfig()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
+
+    try:
+        uc = container.prompt_uc()
+        prompt_text = uc.execute(ghsa=ghsa, force_reclone=force_reclone)
+        typer.echo(prompt_text)
+    except GHSANotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+    finally:
+        container.shutdown_resources()
+
+
+@app.command()
 def batch(
     provider: str | None = typer.Option(None, "--provider", case_sensitive=False, help="LLM provider (optional)"),
     model: str | None = typer.Option(None, "--model", help="Model name (optional)"),

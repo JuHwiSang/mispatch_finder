@@ -9,6 +9,7 @@ from ..core.usecases.list import ListUseCase
 from ..core.usecases.clear_cache import ClearCacheUseCase
 from ..core.usecases.logs import LogsUseCase
 from ..core.usecases.mcp import MCPUseCase
+from ..core.usecases.prompt import PromptUseCase
 from ..core.services import DiffService, JsonExtractor, AnalysisOrchestrator
 from ..infra.vulnerability_data import VulnerabilityDataAdapter
 from ..infra.repository import Repository
@@ -125,4 +126,11 @@ class Container(containers.DeclarativeContainer):
         vuln_data=vuln_data,
         repo=repo,
         token_gen=token_gen,
+    )
+
+    prompt_uc = providers.Factory(
+        PromptUseCase,
+        vuln_data=vuln_data,
+        repo=repo,
+        diff_service=diff_service,
     )

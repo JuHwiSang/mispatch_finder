@@ -202,3 +202,26 @@ class FakeLogger:
 
     def exception(self, message: str, **kwargs) -> None:
         pass
+
+
+from mispatch_finder.core.services.diff_service import DiffService
+
+class FakeDiffService(DiffService):
+    """Fake diff service for testing."""
+    def __init__(self, *, repo=None, max_chars: int = 100000):
+        from mispatch_finder.core.services.diff_service import DiffResult
+        self.DiffResult = DiffResult
+        self.generate_diff_calls = []
+        self._repo = repo
+        self._max_chars = max_chars
+
+    def generate_diff(self, *, workdir: Path | None, commit: str):
+        self.generate_diff_calls.append((workdir, commit))
+        diff_text = "diff --git a/test.py b/test.py\n+added line"
+        return self.DiffResult(
+            full_text=diff_text,
+            truncated_text=diff_text,
+            full_len=len(diff_text),
+            included_len=len(diff_text),
+            was_truncated=False,
+        )
