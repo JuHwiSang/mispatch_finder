@@ -114,9 +114,22 @@ class FakeMCP:
     def __init__(self):
         self.cleanup_called = False
         self.last_use_tunnel = None
+        self.last_current_workdir = None
+        self.last_previous_workdir = None
+        self.last_auth_token = None
+        self.start_servers_calls = []
 
     def start_servers(self, *, current_workdir, previous_workdir, auth_token, use_tunnel: bool = True) -> MCPServerContext:
         self.last_use_tunnel = use_tunnel
+        self.last_current_workdir = current_workdir
+        self.last_previous_workdir = previous_workdir
+        self.last_auth_token = auth_token
+        self.start_servers_calls.append({
+            "current_workdir": current_workdir,
+            "previous_workdir": previous_workdir,
+            "auth_token": auth_token,
+            "use_tunnel": use_tunnel,
+        })
         ctx = MCPServerContext(
             local_url="http://127.0.0.1:18080",
             public_url="https://test.lhr.life" if use_tunnel else None,
