@@ -119,6 +119,22 @@ Command format: `mispatch-finder <command> [options]`
      - No business logic - just loops through vulnerabilities and delegates to existing `analyze` command
    - **Future consideration**: If batch logic becomes complex (e.g., parallel execution, retry strategies, distributed jobs), consider extracting to `BatchUseCase` in core layer. For now, simple subprocess loop in CLI is most efficient.
 
+6. **`mcp`** - Start standalone MCP server
+   ```bash
+   mispatch-finder mcp                                    # Internal server on default port
+   mispatch-finder mcp --mode external --auth            # External with authentication
+   mispatch-finder mcp --port 8080 --current /path/repo  # Custom port with repo
+   ```
+   - UseCase: `MCPUseCase` ([core/usecases/mcp.py](src/mispatch_finder/core/usecases/mcp.py))
+   - CLI Command: `mcp()` ([app/cli.py:352](src/mispatch_finder/app/cli.py#L352))
+   - **Options**:
+     - `--port, -p`: Port number for MCP server (default: 18080)
+     - `--mode, -m`: Server mode - `internal` (local only) or `external` (with SSH tunnel, default: internal)
+     - `--auth, -a`: Enable authentication (generates random token)
+     - `--current`: Path to current repository
+     - `--previous`: Path to previous repository
+   - **Testing note**: CLI tests are minimal due to infinite loop (server keeps running). Core functionality tested at UseCase level.
+
 ## Core Domain Models
 
 ### Vulnerability
@@ -349,6 +365,20 @@ Optional (with defaults):
 - **Field mapping**: LLM JSON (`current_risk`, `patch_risk`) → `AnalysisResult` (`verdict`, `severity`)
 - **Custom exception**: `GHSANotFoundError` for 404s → clean up empty log files
 - **Pragmatic types**: `# type: ignore[assignment]` where type system can't infer (Union return types)
+
+### MCP Command + Optional Tunneling (11-03)
+- **New command**: `mcp` command for standalone MCP server
+- **Optional tunneling**: `use_tunnel` parameter in `MCPServerPort.start_servers()`
+  - `use_tunnel=True`: Creates SSH tunnel via localhost.run (default for `analyze`)
+  - `use_tunnel=False`: Local-only server (for `mcp --mode internal`)
+- **Authentication**: Random token generation with `secrets.token_urlsafe(32)`
+- **CLI options**: `--port`, `--mode` (internal/external), `--auth`, `--current`, `--previous`
+- **Type safety**: `MCPServerContext.public_url` is now `str | None`
+- **Testing**: UseCase tests cover core functionality; CLI tests minimal (infinite loop issue)
+- **Infrastructure updates**:
+  - `MCPServer` handles optional tunnel creation
+  - `AnalysisOrchestrator` explicitly passes `use_tunnel=True` and validates `public_url`
+  - Signal handlers in CLI for clean shutdown
 
 ### Disabled Features
 - **clear command**: Resource conflict with cve_collector (TODO: define semantics)
