@@ -60,16 +60,17 @@ class AnalysisOrchestrator:
         try:
             # 1) Fetch GHSA metadata
             vuln = self._vuln_data.fetch_metadata(ghsa)
-            self._logger.info("ghsa_meta", payload={
-                "type": "ghsa_meta",
-                "ghsa": ghsa,
-                "vulnerability": {
+            self._logger.info(
+                "ghsa_meta",
+                type="ghsa_meta",
+                ghsa=ghsa,
+                vulnerability={
                     "repo_url": vuln.repository.url,
                     "commit": vuln.commit_hash,
                     "cve_id": vuln.cve_id,
                     "severity": vuln.severity,
                 },
-            })
+            )
 
             # 2) Prepare repositories
             current, previous = self._repo.prepare_workdirs(
@@ -77,13 +78,14 @@ class AnalysisOrchestrator:
                 commit=vuln.commit_hash,
                 force_reclone=force_reclone,
             )
-            self._logger.info("repos_prepared", payload={
-                "type": "repos_prepared",
-                "workdirs": {
+            self._logger.info(
+                "repos_prepared",
+                type="repos_prepared",
+                workdirs={
                     "current": str(current) if current else None,
                     "previous": str(previous) if previous else None,
                 },
-            })
+            )
 
             # 3) Generate diff
             base_worktree = current or previous
@@ -91,12 +93,13 @@ class AnalysisOrchestrator:
                 workdir=base_worktree,
                 commit=vuln.commit_hash,
             )
-            self._logger.info("diff_built", payload={
-                "type": "diff_built",
-                "full_len": diff_result.full_len,
-                "included_len": diff_result.included_len,
-                "truncated": diff_result.was_truncated,
-            })
+            self._logger.info(
+                "diff_built",
+                type="diff_built",
+                full_len=diff_result.full_len,
+                included_len=diff_result.included_len,
+                truncated=diff_result.was_truncated,
+            )
 
             # 4) Start MCP servers + tunnel
             mcp_ctx = self._mcp.start_servers(
@@ -104,13 +107,14 @@ class AnalysisOrchestrator:
                 previous_workdir=previous,
                 auth_token=mcp_token,
             )
-            self._logger.info("mcp_ready", payload={
-                "type": "mcp_ready",
-                "local_url": mcp_ctx.local_url,
-                "public_url": mcp_ctx.public_url,
-                "has_current": mcp_ctx.has_current,
-                "has_previous": mcp_ctx.has_previous,
-            })
+            self._logger.info(
+                "mcp_ready",
+                type="mcp_ready",
+                local_url=mcp_ctx.local_url,
+                public_url=mcp_ctx.public_url,
+                has_current=mcp_ctx.has_current,
+                has_previous=mcp_ctx.has_previous,
+            )
 
             # 5) Build prompt and call LLM
             prompt = build_prompt(
@@ -191,9 +195,10 @@ class AnalysisOrchestrator:
             )
 
             # Log with dict representation for JSON serialization
-            self._logger.info("final_result", payload={
-                "type": "final_result",
-                "result": {
+            self._logger.info(
+                "final_result",
+                type="final_result",
+                result={
                     "ghsa": result.ghsa,
                     "provider": result.provider,
                     "model": result.model,
@@ -204,7 +209,7 @@ class AnalysisOrchestrator:
                     "poc_idea": result.poc_idea,
                     "raw_text": result.raw_text,
                 },
-            })
+            )
 
             return result
 

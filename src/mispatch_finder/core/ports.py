@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from pathlib import Path
-from typing import Protocol, Optional, Dict, Any, Union, overload, Iterator
+from typing import Protocol, Union, overload, Iterator, Any, Optional
 from dataclasses import dataclass
 
 from .domain.models import Vulnerability
@@ -197,23 +197,23 @@ class TokenGeneratorPort(Protocol):
 class LoggerPort(Protocol):
     """Port for structured logging.
 
-    Provides structured logging with optional payload data.
+    Provides structured logging with arbitrary extra fields as kwargs.
     Implementations should handle JSON serialization and formatting.
     """
 
-    def debug(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    def debug(self, message: str, **kwargs: Any) -> None:
         ...
 
-    def info(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    def info(self, message: str, **kwargs: Any) -> None:
         ...
 
-    def warning(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    def warning(self, message: str, **kwargs: Any) -> None:
         ...
 
-    def error(self, message: str, payload: Optional[Dict[str, Any]] = None, exc_info: bool = False) -> None:
+    def error(self, message: str, exc_info: bool = False, **kwargs: Any) -> None:
         ...
 
-    def exception(self, message: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    def exception(self, message: str, **kwargs: Any) -> None:
         ...
 
 

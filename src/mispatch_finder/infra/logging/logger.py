@@ -73,37 +73,37 @@ class AnalysisLogger(Resource):
         # Remove handlers from logger
         self._logger.handlers.clear()
 
-    def debug(self, message: str, payload: dict | None = None) -> None:
-        """Log debug message with optional payload."""
-        if payload:
-            self._logger.debug(message, extra={"payload": payload})
+    def debug(self, message: str, **kwargs) -> None:
+        """Log debug message with optional extra fields."""
+        if kwargs:
+            self._logger.debug(message, extra=kwargs)
         else:
             self._logger.debug(message)
 
-    def info(self, message: str, payload: dict | None = None) -> None:
-        """Log info message with optional payload."""
-        if payload:
-            self._logger.info(message, extra={"payload": payload})
+    def info(self, message: str, **kwargs) -> None:
+        """Log info message with optional extra fields."""
+        if kwargs:
+            self._logger.info(message, extra=kwargs)
         else:
             self._logger.info(message)
 
-    def warning(self, message: str, payload: dict | None = None) -> None:
-        """Log warning message with optional payload."""
-        if payload:
-            self._logger.warning(message, extra={"payload": payload})
+    def warning(self, message: str, **kwargs) -> None:
+        """Log warning message with optional extra fields."""
+        if kwargs:
+            self._logger.warning(message, extra=kwargs)
         else:
             self._logger.warning(message)
 
-    def error(self, message: str, payload: dict | None = None, exc_info: bool = False) -> None:
-        """Log error message with optional payload and exception info."""
-        if payload:
-            self._logger.error(message, extra={"payload": payload}, exc_info=exc_info)
+    def error(self, message: str, exc_info: bool = False, **kwargs) -> None:
+        """Log error message with optional extra fields and exception info."""
+        if kwargs:
+            self._logger.error(message, extra=kwargs, exc_info=exc_info)
         else:
             self._logger.error(message, exc_info=exc_info)
 
-    def exception(self, message: str, payload: dict | None = None) -> None:
-        """Log exception with traceback and optional payload."""
-        if payload:
-            self._logger.exception(message, extra={"payload": payload})
+    def exception(self, message: str, **kwargs) -> None:
+        """Log exception with traceback and optional extra fields."""
+        if kwargs:
+            self._logger.exception(message, extra=kwargs)
         else:
             self._logger.exception(message)

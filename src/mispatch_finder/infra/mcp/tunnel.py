@@ -74,10 +74,8 @@ class Tunnel:
         self._ensure_ssh_available()
         cmd = self._build_cmd(host, port)
         logger.info("tunnel_exec", extra={
-            "payload": {
-                "type": "tunnel_exec",
-                "cmd": " ".join(cmd),
-            }
+            "type": "tunnel_exec",
+            "cmd": " ".join(cmd),
         })
         proc = subprocess.Popen(
             cmd,
@@ -96,7 +94,8 @@ class Tunnel:
                     break
                 line = raw.strip()
                 logger.debug("tunnel_ssh_line", extra={
-                    "payload": {"type": "ssh_line", "line": line}
+                    "type": "ssh_line",
+                    "line": line,
                 })
                 m = re.search(r"https://[0-9a-f]+\.lhr\.life", line)
                 if m and not self.public_url:
@@ -114,10 +113,8 @@ class Tunnel:
 
         if self.public_url:
             logger.info("tunnel_ready", extra={
-                "payload": {
-                    "type": "tunnel_ready",
-                    "public_url": self.public_url,
-                }
+                "type": "tunnel_ready",
+                "public_url": self.public_url,
             })
             print("\npublic url obtained:", self.public_url)
             return self.public_url
@@ -125,10 +122,8 @@ class Tunnel:
         # Failed to obtain URL; clean up and error
         self.stop()
         logger.error("tunnel_failed_to_obtain_url", extra={
-            "payload": {
-                "type": "tunnel_error",
-                "reason": "no_public_url",
-            }
+            "type": "tunnel_error",
+            "reason": "no_public_url",
         })
         raise RuntimeError("Failed to obtain public URL from ssh output. Is localhost.run reachable?")
 
@@ -167,7 +162,7 @@ class Tunnel:
         self.stop()
 
     @classmethod
-    def start_tunnel(cls, host: str, port: int) -> Tuple[str, "Tunnel"]:
+    def start_tunnel(cls, host: str, port: int) -> tuple[str, "Tunnel"]:
         t = cls()
         public_url = t.start(host, port)
         return public_url, t

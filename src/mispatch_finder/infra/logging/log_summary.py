@@ -35,6 +35,8 @@ class LogDetails:
 def parse_log_details(fp: Path) -> LogDetails:
     """Parse a single JSONL log file and return concise details with fallbacks.
 
+    Supports both old format (extra={'payload': {...}}) and new format (extra={...}).
+
     Fallback rules:
     - repo_url/commit: from `ghsa_meta` payload when available; otherwise empty
     - risks: prefer `current_risk` then `patch_risk` from `final_result.result.raw_text` JSON
@@ -51,7 +53,18 @@ def parse_log_details(fp: Path) -> LogDetails:
             continue
 
         msg = obj.get("message")
-        payload = obj.get("payload") or {}
+
+        # Support both old format (payload wrapper) and new format (direct fields)
+        # Priority: Try 'payload' first (old format), fallback to obj itself (new format)
+        payload_data = obj.get("payload")
+        if payload_data is None:
+            # New format: extra fields are directly in obj
+            payload = obj
+        elif isinstance(payload_data, dict):
+            # Old format: payload is a dict wrapper
+            payload = payload_data
+        else:
+            payload = {}
 
         # model (early from run_started or llm_input)
         if msg == "run_started":
@@ -159,26 +172,36 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
             continue
 
         msg = obj.get("message")
+
+        # Support both old format (payload wrapper) and new format (direct fields)
+        payload_data = obj.get("payload")
+        if payload_data is None:
+            # New format: extra fields are directly in obj
+            payload = obj
+        elif isinstance(payload_data, dict):
+            # Old format: payload is a dict wrapper
+            payload = payload_data
+        else:
+            payload = {}
+
         if msg == "mcp_request":
-            payload = obj.get("payload", {})
             # exclude inventory listing calls
             if payload.get("method") == "tools/list":
                 pass
             else:
                 mcp_total_calls += 1
                 if verbose:
-                    message = payload.get("message", {})
-                    tool_name = message.get("name")
+                    # Support both old 'message' and new 'mcp_message' field names
+                    mcp_msg = payload.get("mcp_message") or payload.get("message", {})
+                    tool_name = mcp_msg.get("name") if isinstance(mcp_msg, dict) else None
                     if tool_name:
                         mcp_tool_counts[tool_name] = mcp_tool_counts.get(tool_name, 0) + 1
 
         elif msg == "llm_usage":
-            payload = obj.get("payload", {})
             tokens = payload.get("total_tokens")
             if isinstance(tokens, int):
                 total_tokens += tokens
 
-        payload = obj.get("payload") or {}
         typ = payload.get("type") if isinstance(payload, dict) else None
 
         if typ == "run_started" and not run_date:
@@ -186,7 +209,7 @@ def parse_log_file(fp: Path, verbose: bool = False) -> RunSummary:
             run_date = ""
             if not model:
                 model = payload.get("model") or model
-        
+
         if typ == "llm_input":
             if not model:
                 model = payload.get("model") or model

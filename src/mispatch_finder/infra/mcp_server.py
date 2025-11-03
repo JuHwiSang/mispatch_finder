@@ -50,7 +50,7 @@ class MCPServer:
             stateless_http=True,
         )
         app.add_middleware(LoggingMiddleware(include_payloads=True))
-        app.add_middleware(WiretapLoggingMiddleware(logger_name=__name__))
+        app.add_middleware(WiretapLoggingMiddleware())
 
         if current_repo:
             app.mount(prefix="current_repo", server=current_repo)
@@ -67,14 +67,15 @@ class MCPServer:
         thread.start()
         local_url = f"http://127.0.0.1:{self._port}"
 
-        self._logger.info("aggregator_started", payload={
-            "type": "aggregator_started",
-            "local_url": local_url,
-            "mounted": {
+        self._logger.info(
+            "aggregator_started",
+            type="aggregator_started",
+            local_url=local_url,
+            mounted={
                 "current_repo": bool(current_repo),
                 "previous_repo": bool(previous_repo),
             },
-        })
+        )
 
         # 3) Start tunnel
         m = re.match(r"^https?://([^/:]+):(\d+)$", local_url)
@@ -83,10 +84,11 @@ class MCPServer:
         host, port = m.group(1), int(m.group(2))
         public_url, tunnel_handle = Tunnel.start_tunnel(host, port)
 
-        self._logger.info("tunnel_started", payload={
-            "type": "tunnel_started",
-            "public_url": public_url,
-        })
+        self._logger.info(
+            "tunnel_started",
+            type="tunnel_started",
+            public_url=public_url,
+        )
 
         # 4) Build context with cleanup
         ctx = MCPServerContext(
