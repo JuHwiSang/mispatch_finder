@@ -1209,6 +1209,150 @@ evidence     → evidence
 
 **Impact**: Updated 12 files (1 exception, 1 adapter, 1 logger, 1 container, 1 CLI, 7 test files)
 
+### Phase 29: Logging Structure Simplification (2025-11-03)
+**Status**: ✅ Completed
+
+**Problem**:
+1. All logging used `extra={'payload': {...}}` wrapper - unnecessary nesting
+2. WiretapLoggingMiddleware used `'message'` field name → conflicts with Python logging reserved field
+3. Tunnel logging still used old `extra={'payload': {...}}` format
+4. No fallback support for old vs new log formats in parsing
+
+**Solution**: Simplified to `extra={...}` structure with backward compatibility
+
+**Changes**:
+
+1. **LoggerPort Protocol** ([core/ports.py:197-217](src/mispatch_finder/core/ports.py#L197-L217)):
+   - **Before**: `def info(self, message: str, payload: dict | None = None)`
+   - **After**: `def info(self, message: str, **kwargs: Any)`
+   - All methods now accept arbitrary keyword arguments via `**kwargs`
+
+2. **AnalysisLogger Implementation** ([infra/logging/logger.py:76-109](src/mispatch_finder/infra/logging/logger.py#L76-L109)):
+   - **Before**: `self._logger.info(message, extra={"payload": payload})`
+   - **After**: `self._logger.info(message, extra=kwargs)`
+   - Direct pass-through of kwargs to Python logging
+
+3. **All Logging Call Sites Updated**:
+   - **AnalysisOrchestrator** ([analysis_orchestrator.py](src/mispatch_finder/core/services/analysis_orchestrator.py)):
+     ```python
+     # Before: logger.info("ghsa_meta", payload={"type": "ghsa_meta", "ghsa": ghsa, ...})
+     # After:  logger.info("ghsa_meta", type="ghsa_meta", ghsa=ghsa, ...)
+     ```
+     - Updated 5 logging calls: ghsa_meta, repos_prepared, diff_built, mcp_ready, final_result
+
+   - **LLM** ([llm.py](src/mispatch_finder/infra/llm.py)):
+     - Updated 3 logging calls: llm_input, llm_usage, llm_output
+
+   - **MCPServer** ([mcp_server.py](src/mispatch_finder/infra/mcp_server.py)):
+     - Updated 2 logging calls: aggregator_started, tunnel_started
+
+4. **WiretapLoggingMiddleware** ([infra/mcp/wiretap_logging.py](src/mispatch_finder/infra/mcp/wiretap_logging.py)):
+   - **Problem**: Used `extra={"message": ...}` → conflicts with logging.LogRecord.message
+   - **Solution**:
+     - Removed `__init__` with logger_name parameter
+     - Use module-level `logger = logging.getLogger(__name__)` (like tunnel.py)
+     - Changed field names: `"message"` → `"mcp_message"`, `"result"` → `"mcp_result"`
+     - Removed `extra={'payload': {...}}` wrapper
+   ```python
+   # Before:
+   class WiretapLoggingMiddleware(Middleware):
+       def __init__(self, logger_name: str = __name__):
+           self._logger = logging.getLogger(logger_name)
+       async def on_message(self, ctx, call_next):
+           self._logger.info("mcp_request", extra={
+               "payload": {"type": "request", "method": ctx.method, "message": to_jsonable(ctx.message)}
+           })
+
+   # After:
+   logger = logging.getLogger(__name__)
+   class WiretapLoggingMiddleware(Middleware):
+       async def on_message(self, ctx, call_next):
+           logger.info("mcp_request", extra={
+               "type": "request", "method": ctx.method, "mcp_message": to_jsonable(ctx.message)
+           })
+   ```
+
+5. **Tunnel** ([infra/mcp/tunnel.py](src/mispatch_finder/infra/mcp/tunnel.py)):
+   - Updated 4 logging calls: tunnel_exec, tunnel_ssh_line, tunnel_ready, tunnel_failed_to_obtain_url
+   - Removed `extra={'payload': {...}}` wrapper throughout
+
+6. **Log Parsing Backward Compatibility** ([infra/logging/log_summary.py](src/mispatch_finder/infra/logging/log_summary.py)):
+   - **Fallback logic** for both `parse_log_details()` and `parse_log_file()`:
+     ```python
+     payload_data = obj.get("payload")
+     if payload_data is None:
+         # New format: extra fields directly in obj
+         payload = obj
+     elif isinstance(payload_data, dict):
+         # Old format: payload wrapper
+         payload = payload_data
+     else:
+         payload = {}
+     ```
+   - **MCP message field fallback** (lines 194-198):
+     ```python
+     # Support both old 'message' and new 'mcp_message' field names
+     mcp_msg = payload.get("mcp_message") or payload.get("message", {})
+     ```
+
+7. **Test Updates**:
+   - **test_json_logging.py**: 3 tests
+     - `test_json_logging_format()`: Updated to new format
+     - `test_json_logging_with_direct_fields()`: Tests new format
+     - `test_json_logging_with_payload_wrapper()`: Tests old format (backward compat)
+
+   - **test_log_summary.py**: Added 4 comprehensive tests
+     - `test_parse_log_details_old_format()`: Full old format parsing
+     - `test_parse_log_details_new_format()`: Full new format parsing
+     - `test_parse_log_file_old_format()`: Old format summary generation
+     - `test_parse_log_file_new_format()`: New format summary generation
+
+   - **FakeLogger in test files**: Updated signatures (3 files)
+     - `test_llm.py`, `test_usecases.py`, `test_services.py`
+     - Changed from `def info(self, event_type, *, payload=None)` to `def info(self, event_type, **kwargs)`
+
+**Log Structure Comparison**:
+
+**Before (Old Format)**:
+```json
+{
+  "message": "ghsa_meta",
+  "level": "INFO",
+  "logger": "mispatch_finder",
+  "payload": {
+    "type": "ghsa_meta",
+    "ghsa": "GHSA-xxxx",
+    "vulnerability": {...}
+  }
+}
+```
+
+**After (New Format)**:
+```json
+{
+  "message": "ghsa_meta",
+  "level": "INFO",
+  "logger": "mispatch_finder",
+  "type": "ghsa_meta",
+  "ghsa": "GHSA-xxxx",
+  "vulnerability": {...}
+}
+```
+
+**Benefits**:
+- ✅ **Simpler structure**: No unnecessary `payload` wrapper
+- ✅ **Direct field access**: Cleaner JSON structure for analysis tools
+- ✅ **Backward compatible**: Old logs still parse correctly
+- ✅ **Fixed logging conflict**: `message` → `mcp_message` avoids LogRecord collision
+- ✅ **Consistent pattern**: All infrastructure uses same logging style
+- ✅ **Better API**: `logger.info("event", field1=val1, field2=val2)` more Pythonic
+
+**Critical Fix**:
+- Resolved `McpError: "Attempt to overwrite 'message' in LogRecord"` by renaming WiretapLoggingMiddleware fields
+- Python's logging module reserves `message` field in LogRecord - cannot be overwritten via `extra`
+
+**Impact**: Updated 15 files (1 port, 1 logger, 4 logging call sites, 2 middleware, 1 log parser, 6 test files)
+
 ## Active TODOs
 
 **When completing these, remove from this list and document in "Recent Changes" above.**
