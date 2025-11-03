@@ -355,31 +355,28 @@ def batch(
 
 @app.command()
 def mcp(
+    ghsa: str = typer.Argument(..., help="GitHub Security Advisory ID (e.g., GHSA-xxxx-xxxx-xxxx)"),
     port: int = typer.Option(18080, "--port", "-p", help="Port number for MCP server"),
     mode: str = typer.Option("local", "--mode", "-m", help="Server mode: 'local' (local only) or 'tunnel' (with SSH tunnel)"),
     auth: bool = typer.Option(False, "--auth", "-a", help="Enable authentication (generates random token)"),
-    current_repo: str | None = typer.Option(None, "--current", help="Path to current repository"),
-    previous_repo: str | None = typer.Option(None, "--previous", help="Path to previous repository"),
+    force_reclone: bool = typer.Option(False, "--force-reclone", help="Force re-clone of repositories"),
 ):
-    """Start a standalone MCP server.
+    """Start a standalone MCP server for a specific vulnerability.
 
+    Prepares repository workdirs from the GHSA ID and starts an MCP server.
     By default, starts on port 18080 in local mode (local access only) without authentication.
     Use --mode tunnel to expose via SSH tunnel.
     Use --auth to enable token-based authentication.
 
     Examples:
-      mispatch-finder mcp                                    # Local server on default port
-      mispatch-finder mcp --mode tunnel --auth              # Tunnel with authentication
-      mispatch-finder mcp --port 8080 --current /path/repo  # Custom port with repo
+      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx                      # Local server on default port
+      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode tunnel --auth # Tunnel with authentication
+      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --port 8080          # Custom port
     """
     # Validate mode
     if mode not in ("local", "tunnel"):
         typer.echo(f"Error: Invalid mode '{mode}'. Must be 'local' or 'tunnel'.", err=True)
         raise typer.Exit(code=1)
-
-    # Convert paths to Path objects
-    current_path = Path(current_repo) if current_repo else None
-    previous_path = Path(previous_repo) if previous_repo else None
 
     # Create container
     config = AppConfig()
@@ -391,20 +388,26 @@ def mcp(
     mcp_server = MCPServer(port=port, logger=container.logger())
 
     # Execute use case with custom MCP server
-    uc = MCPUseCase(mcp_server=mcp_server)
+    uc = MCPUseCase(
+        mcp_server=mcp_server,
+        vuln_data=container.vuln_data(),
+        repo=container.repo(),
+        token_gen=container.token_gen(),
+    )
     use_tunnel = mode == "tunnel"
 
+    typer.echo(f"Preparing repositories for {ghsa}...")
     typer.echo(f"Starting MCP server on port {port}...")
     typer.echo(f"Mode: {mode}")
     typer.echo(f"Authentication: {'enabled' if auth else 'disabled'}")
 
     try:
         result = uc.execute(
+            ghsa=ghsa,
             port=port,
             use_tunnel=use_tunnel,
             use_auth=auth,
-            current_workdir=current_path,
-            previous_workdir=previous_path,
+            force_reclone=force_reclone,
         )
 
         typer.echo("\n" + "=" * 60)
