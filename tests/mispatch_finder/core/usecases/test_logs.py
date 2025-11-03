@@ -1,38 +1,7 @@
-import pytest
-from typing import Optional
-
+"""Tests for LogsUseCase."""
 from mispatch_finder.core.usecases.logs import LogsUseCase
 
-
-class FakeAnalysisStore:
-    """Fake analysis store for testing logs functionality."""
-
-    def __init__(self):
-        self.read_calls = []
-        self.summarize_calls = []
-
-    def read_log(self, ghsa: str, verbose: bool) -> list[str]:
-        self.read_calls.append((ghsa, verbose))
-        if verbose:
-            return [
-                '{"message":"run_started","ghsa":"GHSA-TEST"}',
-                '{"message":"final_result","payload":{"type":"final_result"}}',
-            ]
-        return [
-            "GHSA-TEST | good/good | test reason",
-        ]
-
-    def summarize_all(self, verbose: bool) -> list[str]:
-        self.summarize_calls.append(verbose)
-        if verbose:
-            return [
-                "GHSA-1111 | good/good | reason1 | MCP: 10 calls",
-                "GHSA-2222 | low/low | reason2 | MCP: 5 calls",
-            ]
-        return [
-            "GHSA-1111 | good/good | reason1",
-            "GHSA-2222 | low/low | reason2",
-        ]
+from tests.mispatch_finder.core.usecases.conftest import FakeAnalysisStore
 
 
 def test_logs_with_ghsa_verbose():
