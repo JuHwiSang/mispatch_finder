@@ -66,16 +66,17 @@ def parse_log_details(fp: Path) -> LogDetails:
 
         # ghsa meta (repo url / commit)
         if msg == "ghsa_meta":
-            meta = payload.get("meta") or {}
-            repo_url = meta.get("repo_url")
-            commit = meta.get("commit")
+            ghsa = payload.get("ghsa")
+            if isinstance(ghsa, str):
+                details.ghsa_id = ghsa
+
+            vulnerability = payload.get("vulnerability") or {}
+            repo_url = vulnerability.get("repo_url")
+            commit = vulnerability.get("commit")
             if isinstance(repo_url, str):
                 details.repo_url = repo_url
             if isinstance(commit, str):
                 details.commit = commit
-            ghsa = payload.get("ghsa")
-            if isinstance(ghsa, str):
-                details.ghsa_id = ghsa
 
         # final result (risks and reasoning)
         if msg == "final_result":
