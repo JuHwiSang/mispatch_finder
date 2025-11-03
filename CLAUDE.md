@@ -381,6 +381,29 @@ Optional (with defaults):
   - `AnalysisOrchestrator` explicitly passes `use_tunnel=True` and validates `public_url`
   - Signal handlers in CLI for clean shutdown
 
+### UseCase Test Reorganization (11-03)
+- **Structure**: `tests/core/usecases/` now mirrors `app/cli/` structure
+  - Created `tests/core/usecases/` directory with per-usecase test files
+  - `conftest.py` with shared Fake classes (FakeVulnRepo, FakeRepo, FakeMCP, etc.)
+  - Individual test files: `test_analyze.py`, `test_list.py`, `test_clear_cache.py`, `test_mcp.py`, `test_logs.py`
+- **Removed**: Old monolithic files (`test_usecases.py`, `test_usecases_logs.py`)
+- **Benefits**: Better organization, easier to find tests, consistent with CLI test structure
+
+### MCP Command Redesign (11-03)
+- **Interface change**: `mcp` now requires GHSA ID as argument (like `analyze`)
+  - Old: `mcp --current /path --previous /path` (incorrect design)
+  - New: `mcp GHSA-xxxx-xxxx-xxxx` (automatically prepares workdirs)
+- **Mode naming**: Changed from `internal`/`external` to `local`/`tunnel`
+  - `--mode local`: Local-only access (default)
+  - `--mode tunnel`: SSH tunnel via localhost.run
+- **MCPUseCase updates**:
+  - Added dependencies: `VulnerabilityDataPort`, `RepositoryPort`, `TokenGeneratorPort`
+  - Removed direct `secrets` usage, now uses `TokenGeneratorPort` (proper DI)
+  - Prepares workdirs from GHSA ID automatically
+  - Uses `vuln.repository.url` instead of manually constructing URL
+- **Test updates**: All 11 tests updated with new dependencies, token generation tests fixed
+- **Documentation**: CLAUDE.md and CLI help updated to reflect new interface
+
 ### Disabled Features
 - **clear command**: Resource conflict with cve_collector (TODO: define semantics)
 
