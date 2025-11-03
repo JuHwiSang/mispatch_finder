@@ -385,7 +385,7 @@ def mcp(
     container.init_resources()
 
     # Create MCP server with custom port
-    mcp_server = MCPServer(port=port, logger=container.logger())
+    mcp_server = MCPServer(logger=container.logger())
 
     # Execute use case with custom MCP server
     uc = MCPUseCase(
