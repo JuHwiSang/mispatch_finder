@@ -103,9 +103,20 @@ Command format: `mispatch-finder <command> [options]`
    mispatch-finder logs GHSA-xxxx-xxxx-xxxx --verbose  # Detailed logs for specific GHSA
    ```
    - UseCase: `LogsUseCase` ([core/usecases/logs.py](src/mispatch_finder/core/usecases/logs.py))
-   - CLI Command: `logs()` ([app/cli.py:250](src/mispatch_finder/app/cli.py#L250))
+   - CLI Command: `logs()` ([app/cli.py:230](src/mispatch_finder/app/cli.py#L230))
 
-5. **`batch`** - Run batch analysis
+5. **`prompt <GHSA-ID>`** - Display raw analysis prompt
+   ```bash
+   mispatch-finder prompt GHSA-xxxx-xxxx-xxxx              # Show prompt for GHSA
+   mispatch-finder prompt GHSA-xxxx-xxxx-xxxx --force-reclone  # Force re-clone repos
+   ```
+   - UseCase: `PromptUseCase` ([core/usecases/prompt.py](src/mispatch_finder/core/usecases/prompt.py))
+   - CLI Command: `prompt()` ([app/cli.py:248](src/mispatch_finder/app/cli.py#L248))
+   - **Behavior**: Generates and displays the complete prompt that would be sent to the LLM
+   - **Use case**: Debug prompt content, verify diff inclusion, save prompt for external LLM testing
+   - **Output**: Raw prompt text to stdout (can be redirected: `> prompt.txt`)
+
+6. **`batch`** - Run batch analysis
    ```bash
    mispatch-finder batch --limit 10 --provider openai --model gpt-4
    mispatch-finder batch --filter "severity == 'CRITICAL'" --limit 5
@@ -119,7 +130,7 @@ Command format: `mispatch-finder <command> [options]`
      - No business logic - just loops through vulnerabilities and delegates to existing `analyze` command
    - **Future consideration**: If batch logic becomes complex (e.g., parallel execution, retry strategies, distributed jobs), consider extracting to `BatchUseCase` in core layer. For now, simple subprocess loop in CLI is most efficient.
 
-6. **`mcp <GHSA-ID>`** - Start standalone MCP server
+7. **`mcp <GHSA-ID>`** - Start standalone MCP server
    ```bash
    mispatch-finder mcp GHSA-xxxx-xxxx-xxxx                      # Local server on default port
    mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode tunnel --auth # Tunnel with authentication
@@ -184,7 +195,7 @@ class Repository:
 
 ### CLI Structure
 - **No facades**: CLI commands create Container + execute UseCase inline
-- **Commands**: `analyze`, `list`, `logs`, `batch` (subprocess orchestration)
+- **Commands**: `analyze`, `list`, `logs`, `prompt`, `batch` (subprocess orchestration), `mcp`
 - **Clear disabled**: Resource conflict with cve_collector (TODO)
 
 ### UseCase Pattern
@@ -196,7 +207,7 @@ class Repository:
 
 ### Application Layer
 - **CLI**: [app/cli.py](src/mispatch_finder/app/cli.py) - Typer-based CLI commands (self-contained)
-  - CLI commands: `analyze()`, `list_command()`, `clear_command()`, `logs()`, `batch()`
+  - CLI commands: `analyze()`, `list_command()`, `clear_command()`, `logs()`, `prompt()`, `batch()`, `mcp()`
   - Each command creates Container and executes UseCase inline
 - **Container**: [app/container.py](src/mispatch_finder/app/container.py) - DI container with Pydantic support
 - **Config**: [app/config.py](src/mispatch_finder/app/config.py) - Pydantic BaseSettings configuration models
@@ -384,8 +395,8 @@ Optional (with defaults):
 ### UseCase Test Reorganization (11-03)
 - **Structure**: `tests/core/usecases/` now mirrors `app/cli/` structure
   - Created `tests/core/usecases/` directory with per-usecase test files
-  - `conftest.py` with shared Fake classes (FakeVulnRepo, FakeRepo, FakeMCP, etc.)
-  - Individual test files: `test_analyze.py`, `test_list.py`, `test_clear_cache.py`, `test_mcp.py`, `test_logs.py`
+  - `conftest.py` with shared Fake classes (FakeVulnRepo, FakeRepo, FakeMCP, FakeDiffService, etc.)
+  - Individual test files: `test_analyze.py`, `test_list.py`, `test_clear_cache.py`, `test_mcp.py`, `test_logs.py`, `test_prompt.py`
 - **Removed**: Old monolithic files (`test_usecases.py`, `test_usecases_logs.py`)
 - **Benefits**: Better organization, easier to find tests, consistent with CLI test structure
 
@@ -422,6 +433,26 @@ Optional (with defaults):
   - `tests/app/conftest.py` - MockMCPServer
   - `tests/core/test_services.py` - FakeMCP (2 orchestrator tests)
   - `tests/core/usecases/test_analyze.py` - orchestrator construction
+
+### Prompt Command Added (11-04)
+- **New command**: `prompt <GHSA-ID>` to display raw analysis prompt
+- **UseCase**: `PromptUseCase` ([core/usecases/prompt.py](src/mispatch_finder/core/usecases/prompt.py))
+  - Dependencies: `VulnerabilityDataPort`, `RepositoryPort`, `DiffService`
+  - Flow: Fetch metadata → Prepare workdirs → Generate diff → Build prompt
+  - Returns: Complete prompt string (sent to stdout)
+- **Use cases**:
+  - Debug prompt content before running analysis
+  - Verify diff inclusion and truncation
+  - Save prompt for external LLM testing
+- **CLI**: `prompt()` command ([app/cli.py:248](src/mispatch_finder/app/cli.py#L248))
+  - Options: `--force-reclone` to force repository re-clone
+  - Output: Raw text to stdout (can redirect: `mispatch-finder prompt GHSA-xxx > prompt.txt`)
+- **Tests**:
+  - Unit tests: [tests/core/usecases/test_prompt.py](tests/mispatch_finder/core/usecases/test_prompt.py)
+  - CLI E2E tests: [tests/app/cli/test_prompt.py](tests/mispatch_finder/app/cli/test_prompt.py)
+  - Fake implementation: `FakeDiffService` in [tests/core/usecases/conftest.py](tests/mispatch_finder/core/usecases/conftest.py)
+    - Inherits from `DiffService` for proper type compatibility
+    - Mock implementation returns fixed diff text for testing
 
 ### Disabled Features
 - **clear command**: Resource conflict with cve_collector (TODO: define semantics)
