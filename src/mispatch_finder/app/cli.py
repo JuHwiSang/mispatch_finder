@@ -379,27 +379,46 @@ def batch(
 @app.command()
 def mcp(
     ghsa: str = typer.Argument(..., help="GitHub Security Advisory ID (e.g., GHSA-xxxx-xxxx-xxxx)"),
-    port: int = typer.Option(18080, "--port", "-p", help="Port number for MCP server"),
-    mode: str = typer.Option("local", "--mode", "-m", help="Server mode: 'local' (local only) or 'tunnel' (with SSH tunnel)"),
+    mode: str = typer.Option("stdio", "--mode", "-m", help="Transport mode: 'stdio' or 'streamable-http'"),
+    port: int | None = typer.Option(None, "--port", "-p", help="Port number (required for streamable-http)"),
+    tunnel: bool = typer.Option(False, "--tunnel", "-t", help="Enable SSH tunnel (only for streamable-http)"),
     auth: bool = typer.Option(False, "--auth", "-a", help="Enable authentication (generates random token)"),
     force_reclone: bool = typer.Option(False, "--force-reclone", help="Force re-clone of repositories"),
 ):
     """Start a standalone MCP server for a specific vulnerability.
 
     Prepares repository workdirs from the GHSA ID and starts an MCP server.
-    By default, starts on port 18080 in local mode (local access only) without authentication.
-    Use --mode tunnel to expose via SSH tunnel.
-    Use --auth to enable token-based authentication.
+
+    TRANSPORT MODES:
+      stdio           - Direct communication via stdin/stdout (default)
+      streamable-http - HTTP server (requires --port)
+
+    STREAMABLE-HTTP OPTIONS:
+      --port       - Port number (required)
+      --tunnel     - Expose via SSH tunnel
+      --auth       - Enable token authentication
 
     Examples:
-      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx                      # Local server on default port
-      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode tunnel --auth # Tunnel with authentication
-      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --port 8080          # Custom port
+      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx                           # stdio mode (default)
+      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode streamable-http --port 18080
+      mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode streamable-http --port 18080 --tunnel --auth
     """
     # Validate mode
-    if mode not in ("local", "tunnel"):
-        typer.echo(f"Error: Invalid mode '{mode}'. Must be 'local' or 'tunnel'.", err=True)
+    if mode not in ("stdio", "streamable-http"):
+        typer.echo(f"Error: Invalid mode '{mode}'. Must be 'stdio' or 'streamable-http'.", err=True)
         raise typer.Exit(code=1)
+
+    # For streamable-http, port is required
+    if mode == "streamable-http" and port is None:
+        typer.echo("Error: --port is required for streamable-http mode.", err=True)
+        raise typer.Exit(code=1)
+
+    # For stdio, ignore port/tunnel options
+    if mode == "stdio":
+        if port is not None:
+            typer.echo("Warning: --port is ignored in stdio mode.", err=True)
+        if tunnel:
+            typer.echo("Warning: --tunnel is ignored in stdio mode.", err=True)
 
     # Create container
     config = AppConfig()
@@ -407,54 +426,59 @@ def mcp(
     container.config.from_pydantic(config)
     container.init_resources()
 
-    # Create MCP server with custom port
+    # Create MCP server
     mcp_server = MCPServer(logger=container.logger())
 
-    # Execute use case with custom MCP server
+    # Execute use case
     uc = MCPUseCase(
         mcp_server=mcp_server,
         vuln_data=container.vuln_data(),
         repo=container.repo(),
         token_gen=container.token_gen(),
     )
-    use_tunnel = mode == "tunnel"
 
-    typer.echo(f"Preparing repositories for {ghsa}...")
-    typer.echo(f"Starting MCP server on port {port}...")
-    typer.echo(f"Mode: {mode}")
-    typer.echo(f"Authentication: {'enabled' if auth else 'disabled'}")
+    # Display startup info (only for streamable-http)
+    if mode == "streamable-http":
+        typer.echo(f"Preparing repositories for {ghsa}...")
+        typer.echo(f"Starting MCP server on port {port}...")
+        typer.echo(f"Tunnel: {'enabled' if tunnel else 'disabled'}")
+        typer.echo(f"Authentication: {'enabled' if auth else 'disabled'}")
 
     try:
         result = uc.execute(
             ghsa=ghsa,
+            transport=mode,
             port=port,
-            use_tunnel=use_tunnel,
+            use_tunnel=tunnel,
             use_auth=auth,
             force_reclone=force_reclone,
         )
 
-        typer.echo("\n" + "=" * 60)
-        typer.echo("MCP Server Started Successfully")
-        typer.echo("=" * 60)
-        typer.echo(f"Local URL:  {result['local_url']}")
+        # For streamable-http, display server info
+        if mode == "streamable-http":
+            typer.echo("\n" + "=" * 60)
+            typer.echo("MCP Server Started Successfully")
+            typer.echo("=" * 60)
+            typer.echo(f"Transport: {result['transport']}")
+            typer.echo(f"Local URL:  {result['local_url']}")
 
-        if result["public_url"]:
-            typer.echo(f"Public URL: {result['public_url']}")
+            if result["public_url"]:
+                typer.echo(f"Public URL: {result['public_url']}")
 
-        if result["auth_token"]:
-            typer.echo(f"\nAuthentication Token:")
-            typer.echo(f"  {result['auth_token']}")
+            if result["auth_token"]:
+                typer.echo(f"\nAuthentication Token:")
+                typer.echo(f"  {result['auth_token']}")
 
-        typer.echo("\nPress Ctrl+C to stop the server...")
-        typer.echo("=" * 60)
+            typer.echo("\nPress Ctrl+C to stop the server...")
+            typer.echo("=" * 60)
 
-        # Keep the server running
-        def signal_handler(sig, frame):  # noqa: ARG001
-            typer.echo("\n\nShutting down MCP server...")
-            container.shutdown_resources()
-            raise typer.Exit(code=0)
+            # Keep the server running
+            def signal_handler(sig, frame):  # noqa: ARG001
+                typer.echo("\n\nShutting down MCP server...")
+                container.shutdown_resources()
+                raise typer.Exit(code=0)
 
-        signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGINT, signal_handler)
 
         # Keep alive
         while True:

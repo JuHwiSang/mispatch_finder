@@ -132,17 +132,21 @@ Command format: `mispatch-finder <command> [options]`
 
 7. **`mcp <GHSA-ID>`** - Start standalone MCP server
    ```bash
-   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx                      # Local server on default port
-   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode tunnel --auth # Tunnel with authentication
-   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --port 8080          # Custom port
+   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx                                          # stdio mode (default)
+   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode streamable-http --port 18080     # HTTP server
+   mispatch-finder mcp GHSA-xxxx-xxxx-xxxx --mode streamable-http --port 18080 --tunnel --auth
    ```
    - UseCase: `MCPUseCase` ([core/usecases/mcp.py](src/mispatch_finder/core/usecases/mcp.py))
-   - CLI Command: `mcp()` ([app/cli.py:356](src/mispatch_finder/app/cli.py#L356))
+   - CLI Command: `mcp()` ([app/cli.py:379](src/mispatch_finder/app/cli.py#L379))
    - **Behavior**: Fetches vulnerability metadata from GHSA ID, prepares repository workdirs (current & previous), and starts MCP server
+   - **Transport modes**:
+     - `stdio`: Direct communication via stdin/stdout (default) - port/tunnel options ignored
+     - `streamable-http`: HTTP server mode - requires `--port`, optionally `--tunnel` for SSH tunnel
    - **Options**:
      - `ghsa`: GitHub Security Advisory ID (required argument)
-     - `--port, -p`: Port number for MCP server (default: 18080)
-     - `--mode, -m`: Server mode - `local` (local only) or `tunnel` (with SSH tunnel, default: local)
+     - `--mode, -m`: Transport mode - `stdio` (default) or `streamable-http`
+     - `--port, -p`: Port number (required for streamable-http, ignored for stdio)
+     - `--tunnel, -t`: Enable SSH tunnel (only for streamable-http)
      - `--auth, -a`: Enable authentication (generates random token)
      - `--force-reclone`: Force re-clone of repositories (default: False)
    - **Testing note**: CLI tests are minimal due to infinite loop (server keeps running). Core functionality tested at UseCase level.
@@ -453,6 +457,29 @@ Optional (with defaults):
   - Fake implementation: `FakeDiffService` in [tests/core/usecases/conftest.py](tests/mispatch_finder/core/usecases/conftest.py)
     - Inherits from `DiffService` for proper type compatibility
     - Mock implementation returns fixed diff text for testing
+
+### MCP Transport Mode Refactoring (11-04)
+- **Transport modes**: Replaced `local`/`tunnel` modes with `stdio`/`streamable-http` transport modes
+  - **stdio**: Direct stdin/stdout communication (default) - no port, tunnel, or URL needed
+  - **streamable-http**: HTTP server with optional tunnel - requires `--port`, optional `--tunnel`
+- **Protocol updates**:
+  - `MCPServerPort.start_servers()`: Added `transport: str` parameter, `port` now optional (required for streamable-http)
+  - `MCPServerContext`: Added `transport` field, `local_url`/`public_url` now optional (None for stdio)
+- **CLI changes**:
+  - `--mode`: Now accepts `stdio` (default) or `streamable-http` (was `local`/`tunnel`)
+  - `--tunnel`: New flag to enable SSH tunnel (only for streamable-http)
+  - `--port`: Required for streamable-http, ignored for stdio
+  - Validation: Errors if port missing for streamable-http, warnings if port/tunnel used with stdio
+- **Implementation**:
+  - `MCPServer.start_servers()`: Routes to stdio (blocking) or streamable-http (daemon thread) based on transport
+  - For stdio: Runs `app.run(transport="stdio")` in main thread, returns immediately (blocking call)
+  - For streamable-http: Starts daemon thread, optionally creates tunnel, returns context with URLs
+- **UseCase updates**: `MCPUseCase.execute()` validates transport mode and port requirements
+- **Analysis unchanged**: `AnalysisOrchestrator` continues using streamable-http with tunnel (no changes needed)
+- **Test updates**: All fake/mock implementations updated with `transport` parameter
+  - Added tests for stdio mode, port validation, invalid transport modes
+  - Updated all existing tests to use `transport="streamable-http"` explicitly
+  - CLI tests check for new error messages
 
 ### Disabled Features
 - **clear command**: Resource conflict with cve_collector (TODO: define semantics)

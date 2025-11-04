@@ -142,10 +142,20 @@ class MockMCPServer:
     def __init__(self, **kwargs):
         pass
 
-    def start_servers(self, *, current_workdir, previous_workdir, auth_token: str, port: int, use_tunnel: bool = True) -> MCPServerContext:
+    def start_servers(
+        self,
+        *,
+        current_workdir,
+        previous_workdir,
+        auth_token: str,
+        transport: str,
+        port: int | None = None,
+        use_tunnel: bool = False,
+    ) -> MCPServerContext:
         return MCPServerContext(
-            local_url=f"http://127.0.0.1:{port}",
-            public_url="http://mock.test" if use_tunnel else None,
+            transport=transport,
+            local_url=f"http://127.0.0.1:{port}" if transport == "streamable-http" and port else None,
+            public_url="http://mock.test" if (transport == "streamable-http" and use_tunnel) else None,
             has_current=current_workdir is not None,
             has_previous=previous_workdir is not None,
         )

@@ -133,11 +133,21 @@ class FakeMCP:
         self.cleanup_called = False
         self.last_use_tunnel = None
 
-    def start_servers(self, *, current_workdir, previous_workdir, auth_token, port: int, use_tunnel: bool = True) -> MCPServerContext:
+    def start_servers(
+        self,
+        *,
+        current_workdir,
+        previous_workdir,
+        auth_token,
+        transport: str,
+        port: int | None = None,
+        use_tunnel: bool = False,
+    ) -> MCPServerContext:
         self.last_use_tunnel = use_tunnel
         ctx = MCPServerContext(
-            local_url=f"http://127.0.0.1:{port}",
-            public_url="https://test.example.com" if use_tunnel else None,
+            transport=transport,
+            local_url=f"http://127.0.0.1:{port}" if transport == "streamable-http" and port else None,
+            public_url="https://test.example.com" if (transport == "streamable-http" and use_tunnel) else None,
             has_current=current_workdir is not None,
             has_previous=previous_workdir is not None,
         )

@@ -122,8 +122,9 @@ class RepositoryPort(Protocol):
 @dataclass
 class MCPServerContext:
     """MCP server runtime context."""
-    local_url: str
-    public_url: str | None
+    transport: str  # "stdio" or "streamable-http"
+    local_url: str | None  # Only for streamable-http
+    public_url: str | None  # Only for streamable-http with tunnel
     has_current: bool
     has_previous: bool
 
@@ -141,10 +142,23 @@ class MCPServerPort(Protocol):
         current_workdir: Optional[Path],
         previous_workdir: Optional[Path],
         auth_token: str,
-        port: int,
-        use_tunnel: bool = True,
+        transport: str,  # "stdio" or "streamable-http"
+        port: int | None = None,  # Required for streamable-http, ignored for stdio
+        use_tunnel: bool = False,  # Only meaningful for streamable-http
     ) -> MCPServerContext:
-        """Start child servers, aggregator, and optionally tunnel. Return context."""
+        """Start child servers with specified transport mode.
+
+        Args:
+            current_workdir: Path to current version repository
+            previous_workdir: Path to previous version repository
+            auth_token: Authentication token
+            transport: "stdio" or "streamable-http"
+            port: Port number (required for streamable-http, ignored for stdio)
+            use_tunnel: Whether to create SSH tunnel (only for streamable-http)
+
+        Returns:
+            MCPServerContext with connection info
+        """
         ...
 
 

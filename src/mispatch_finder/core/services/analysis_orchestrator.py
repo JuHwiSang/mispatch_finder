@@ -108,6 +108,7 @@ class AnalysisOrchestrator:
                 current_workdir=current,
                 previous_workdir=previous,
                 auth_token=mcp_token,
+                transport="streamable-http",
                 port=self._mcp_port,
                 use_tunnel=True,  # Analysis always requires tunnel for LLM access
             )
