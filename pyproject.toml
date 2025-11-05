@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.64.0",
     "asyncssh>=2.21.0",
-    "cve-collector",
+    "cve-collector @ git+https://github.com/JuHwiSang/cve_collector",
     "dependency-injector>=4.48.2",
     "gitpython>=3.1.45",
     "openai>=1.102.0",
@@ -16,7 +16,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "python-json-logger>=4.0.0",
-    "repo-read-mcp",
+    "repo-read-mcp @ git+https://github.com/JuHwiSang/repo_read_mcp",
     "typer>=0.16.1",
 ]
 
